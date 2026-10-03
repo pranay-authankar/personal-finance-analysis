@@ -7,6 +7,8 @@ export interface FixedDeposit {
   startDate: string; // YYYY-MM-DD
   maturityDate: string; // YYYY-MM-DD
   photoUrl?: string; // base64 or image url
+  status?: 'active' | 'matured' | 'redeemed';
+  realizedFundId?: string;
 }
 
 export type PostOfficeSchemeType =
@@ -32,6 +34,8 @@ export interface PostOfficeInvestment {
   branch?: string;
   nominee?: string;
   photoUrl?: string;
+  status?: 'active' | 'matured' | 'redeemed';
+  realizedFundId?: string;
 
   // Scheme-Specific Fields
   monthlyInstallment?: number;
@@ -60,6 +64,22 @@ export interface BullionInvestment {
   investedValue?: number; // Total purchase / recorded value in ₹ (Optional)
   photoUrl?: string; // Photo of invoice / hallmark / certificate (Optional)
   notes?: string; // Additional remarks or purity details (Optional)
+  status?: 'active' | 'sold';
+  realizedFundId?: string;
+}
+
+export type RealizedReason = 'Matured' | 'Sold' | 'Redeemed' | 'Other';
+export type RealizedSourceCategory = 'FD' | 'Post Office' | 'Bullions' | 'Real Estate' | 'Stocks' | 'Other';
+
+export interface RealizedFund {
+  id: string;
+  amount: number;
+  sourceCategory: RealizedSourceCategory;
+  sourceName: string; // e.g. "FD — SBI", "Gold — 24K 20g Bar", "Property — Plot in Nagpur"
+  dateReceived: string; // YYYY-MM-DD
+  reason: RealizedReason;
+  remarks?: string;
+  sourceInvestmentId?: string; // Links back to original asset if converted from active asset
 }
 
 export interface OtherAssets {
@@ -67,7 +87,8 @@ export interface OtherAssets {
   stocksMf: number;
   realEstate: number;
   bullions: number;
-  cashInHand: number;
+  cashInHand?: number;
+  realizedFunds?: number;
 }
 
 export interface FamilyMember {
@@ -79,6 +100,7 @@ export interface FamilyMember {
   fds: FixedDeposit[];
   postOfficeInvestments?: PostOfficeInvestment[];
   bullionsInvestments?: BullionInvestment[];
+  realizedFunds?: RealizedFund[];
 }
 
 export interface FDCalculation {
@@ -110,17 +132,20 @@ export interface PortfolioBreakdown {
   stocksMf: number;
   realEstate: number;
   bullions: number;
-  cashInHand: number;
+  realizedFunds: number;
 }
 
 export interface PortfolioSummary {
   total: number;
+  activeInvestmentsTotal: number;
   fdTotal: number;
   postOfficeTotal: number;
   bullionsTotal: number;
+  realizedFundsTotal: number;
   breakdown: PortfolioBreakdown;
 }
 
 export type FilterType = 'all' | 'urgent' | 'this-year' | 'over-year' | 'with-photo';
 export type SortType = 'maturity-asc' | 'maturity-desc' | 'amount-desc' | 'amount-asc' | 'rate-desc' | 'bank-asc' | 'tenure-asc';
 export type ViewMode = 'cards' | 'table';
+

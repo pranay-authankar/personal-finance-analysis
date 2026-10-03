@@ -17,10 +17,23 @@ A modern, high-visibility desktop web application built with **React 19**, **Typ
   - 🏦 **Fixed Deposits (FDs)** — *Active & Functional*
   - 📮 **Post Office Savings Schemes** — *Active & Functional*
   - 🪙 **Bullions (Gold/Silver/Platinum)** — *Active & Functional*
+  - 💰 **Realized Funds (Matured/Sold/Redeemed)** — *Active & Functional*
   - 📈 **Stocks & Mutual Funds** — *(V2 Planned)*
   - 🏡 **Real Estate** — *(V2 Planned)*
-  - 💵 **Cash in Hand** — *(V2 Planned)*
-- Interactive center statistics on slice hover and instant 1-click drill-down into FDs, Post Office, or Bullions.
+- Interactive center statistics on slice hover and instant 1-click drill-down into FDs, Post Office, Bullions, or Realized Funds.
+
+### 3. Realized Funds Vault (Sold, Matured, & Redeemed Proceeds)
+- **Zero Disappearing Wealth Logic**:
+  - Maintains the family's overall tracked investment/wealth value without making money vanish when an asset matures, is sold, or is redeemed.
+  - Formula: **Overall Portfolio Wealth = Active Investments + Realized Funds**.
+  - Example: An FD of ₹5,00,000 matures $\rightarrow$ Active FD principal becomes ₹0, Realized Funds becomes ₹5,00,000. Overall wealth remains constant with **zero double-counting**!
+- **Realized Funds Overview & History (`/realized-funds`)**:
+  - Total Realized Funds metric display with reason breakdown (Matured, Sold, Redeemed, Other).
+  - Clean card history with amount received, source asset identification (e.g., `FD — SBI`, `Gold — 24K Bar`), reason badge, and date received.
+  - Dynamic filtering by reason, source asset type, search, and sorting.
+- **1-Click Transfer from Active Assets**:
+  - Directly move active Fixed Deposits, Post Office schemes, or Bullions into Realized Funds from their respective detail pages via `RealizeAssetModal`.
+  - Manual creation via `/add-realized-fund` with quick-convert dropdown or direct entry for external asset sales (property, stock redemptions, etc.).
 
 ### 3. Bullions Vault (Gold, Silver, Platinum, Other)
 - **Overview & Distribution Chart**:
@@ -133,21 +146,25 @@ A consistent color spectrum indicates maturity urgency without compromising text
 │   │   ├── BullionCard.tsx              # Clean bullion card (needs verification badge)
 │   │   ├── BullionTable.tsx             # Bullion table view
 │   │   ├── BullionDonutChart.tsx        # Bullion type distribution donut
+│   │   ├── RealizedFundCard.tsx         # Realized fund entry card
+│   │   ├── RealizeAssetModal.tsx        # 1-click active asset to realized fund converter
 │   │   ├── PhotoModal.tsx               # Certificate lightbox viewer
 │   │   └── AddMemberModal.tsx           # Add family member dialog
 │   ├── pages/
 │   │   ├── LoginPage.tsx                # Security PIN & quick demo entry
 │   │   ├── FamilySelectPage.tsx         # Family member selector grid
-│   │   ├── HomePage.tsx                 # Net worth & portfolio allocation
+│   │   ├── HomePage.tsx                 # Net worth & portfolio allocation (Active + Realized)
 │   │   ├── FdDashboardPage.tsx          # FD summary, search, filter, sort
-│   │   ├── FdDetailsPage.tsx            # Complete FD view, urgency banner
+│   │   ├── FdDetailsPage.tsx            # Complete FD view, urgency banner & realize action
 │   │   ├── AddFdPage.tsx                # Add/edit FD with live math preview
 │   │   ├── PostOfficeDashboardPage.tsx  # Post office vault overview & list
 │   │   ├── PostOfficeDetailsPage.tsx    # Scheme inspector & passbook preview
 │   │   ├── AddPostOfficePage.tsx        # Add/edit Post Office scheme with calculator
 │   │   ├── BullionsDashboardPage.tsx    # Bullions overview, chart, search & filters
-│   │   ├── BullionDetailsPage.tsx       # Bullion item details, verification & receipt
-│   │   └── AddBullionPage.tsx           # Add/edit bullion (type mandatory, rest optional)
+│   │   ├── BullionDetailsPage.tsx       # Bullion item details, verification & sell action
+│   │   ├── AddBullionPage.tsx           # Add/edit bullion (type mandatory, rest optional)
+│   │   ├── RealizedFundsDashboardPage.tsx # Realized funds overview, reason filters & list
+│   │   └── AddRealizedFundPage.tsx      # Add/edit realized fund with quick asset convert
 │   └── styles/
 │       ├── variables.css                # Color tokens & theme variables
 │       ├── global.css                   # Base reset, typography, buttons

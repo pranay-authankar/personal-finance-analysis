@@ -19,7 +19,7 @@ const CATEGORIES: CategoryConfig[] = [
   { id: 'bullions', name: 'Bullions (Gold/Silver)', icon: '🪙', color: '#D97706', isFunctional: true, route: '/bullions' },
   { id: 'stocksMf', name: 'Stocks & MFs', icon: '📈', color: '#059669', isFunctional: false },
   { id: 'realEstate', name: 'Real Estate', icon: '🏡', color: '#7C3AED', isFunctional: false },
-  { id: 'cashInHand', name: 'Cash in Hand', icon: '💵', color: '#0D9488', isFunctional: false }
+  { id: 'realizedFunds', name: 'Realized Funds', icon: '💰', color: '#0D9488', isFunctional: true, route: '/realized-funds' }
 ];
 
 interface DonutChartProps {
@@ -36,7 +36,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
     stocksMf: 0,
     realEstate: 0,
     bullions: 0,
-    cashInHand: 0
+    realizedFunds: 0
   };
   const total = portfolio.total || 0;
 

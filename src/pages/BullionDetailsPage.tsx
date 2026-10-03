@@ -4,6 +4,7 @@ import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { BULLION_METADATA, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
 import { PhotoModal } from '../components/PhotoModal';
+import { RealizeAssetModal } from '../components/RealizeAssetModal';
 import {
   ChevronLeft,
   Edit3,
@@ -13,7 +14,8 @@ import {
   CheckCircle,
   FileText,
   Image as ImageIcon,
-  ZoomIn
+  ZoomIn,
+  Wallet
 } from 'lucide-react';
 
 interface BullionDetailsPageProps {
@@ -25,6 +27,7 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
   const navigate = useNavigate();
   const { getBullionById, deleteBullion, activeMember } = useInvestments();
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isRealizeModalOpen, setIsRealizeModalOpen] = useState(false);
 
   const b = id ? getBullionById(id) : undefined;
 
@@ -76,6 +79,45 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
           <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{b.itemName}</span>
         </nav>
       </div>
+
+      {/* If Sold, show Realized Funds status notice */}
+      {b.status === 'sold' && (
+        <div
+          style={{
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <CheckCircle size={24} color="#047857" />
+            <div>
+              <strong style={{ color: '#065F46', fontSize: '15px' }}>
+                Asset Sold &amp; Proceeds Transferred to Realized Funds
+              </strong>
+              <p style={{ color: '#047857', fontSize: '13px', margin: '2px 0 0 0' }}>
+                Active valuation is ₹0. Sale proceeds are tracked in Realized Funds to maintain family portfolio visibility.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => navigate('/realized-funds')}
+            style={{ background: 'white', color: '#047857', borderColor: '#A7F3D0', fontWeight: 600 }}
+          >
+            <span>View in Realized Funds &rarr;</span>
+          </button>
+        </div>
+      )}
 
       <div className="details-page-card">
         {/* Verification Status Banner (Clean, NO maturity colors) */}
@@ -284,7 +326,19 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
               <span>Back to Bullions</span>
             </button>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {b.status !== 'sold' && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ background: '#0D9488', borderColor: '#0F766E' }}
+                  onClick={() => setIsRealizeModalOpen(true)}
+                >
+                  <Wallet size={16} />
+                  <span>Mark as Sold / Realize Funds</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="btn btn-danger"
@@ -311,6 +365,19 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
       <PhotoModal
         photoUrl={isPhotoModalOpen ? b.photoUrl || null : null}
         onClose={() => setIsPhotoModalOpen(false)}
+      />
+
+      <RealizeAssetModal
+        isOpen={isRealizeModalOpen}
+        onClose={() => setIsRealizeModalOpen(false)}
+        assetCategory="Bullions"
+        assetId={b.id}
+        assetName={`${b.typeName} — ${b.itemName}`}
+        suggestedAmount={effectiveValue}
+        defaultReason="Sold"
+        onSuccess={(amt, r) => {
+          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})!`, 'success');
+        }}
       />
     </div>
   );

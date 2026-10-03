@@ -11,7 +11,8 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
       stocksMf: 820000,
       realEstate: 3500000,
       bullions: 496000, // Synced with verified bullion total
-      cashInHand: 85000
+      realizedFunds: 680000,
+      cashInHand: 680000
     },
     fds: [
       {
@@ -150,6 +151,26 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
         notes: 'Family inheritance coins held in bank locker',
         photoUrl: ''
       }
+    ],
+    realizedFunds: [
+      {
+        id: 'rf_01',
+        amount: 500000,
+        sourceCategory: 'FD',
+        sourceName: 'FD — SBI',
+        dateReceived: '2026-10-01',
+        reason: 'Matured',
+        remarks: '1-Year SBI Special Term Deposit matured and funds received in savings account'
+      },
+      {
+        id: 'rf_02',
+        amount: 180000,
+        sourceCategory: 'Bullions',
+        sourceName: 'Gold — 24K Bar',
+        dateReceived: '2026-09-18',
+        reason: 'Sold',
+        remarks: 'Sold 20g 24K gold bar via Tanishq exchange program'
+      }
     ]
   },
   {
@@ -162,6 +183,7 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
       stocksMf: 350000,
       realEstate: 0,
       bullions: 816500, // Synced with verified bullion total
+      realizedFunds: 150000,
       cashInHand: 150000
     },
     fds: [
@@ -269,6 +291,17 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
         notes: 'Needs current market valuation cert from jeweller',
         photoUrl: ''
       }
+    ],
+    realizedFunds: [
+      {
+        id: 'rf_m1',
+        amount: 150000,
+        sourceCategory: 'Post Office',
+        sourceName: 'Post Office — 1-Yr POTD',
+        dateReceived: '2026-08-15',
+        reason: 'Matured',
+        remarks: 'Post Office Time Deposit completed 1-year tenure'
+      }
     ]
   },
   {
@@ -281,7 +314,8 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
       stocksMf: 1450000,
       realEstate: 0,
       bullions: 116000, // Synced with verified bullion total
-      cashInHand: 60000
+      realizedFunds: 75000,
+      cashInHand: 75000
     },
     fds: [
       {
@@ -362,6 +396,17 @@ export const DEFAULT_SEED_MEMBERS: FamilyMember[] = [
         investedValue: 38000,
         notes: 'Swiss assay certified investment bar',
         photoUrl: ''
+      }
+    ],
+    realizedFunds: [
+      {
+        id: 'rf_s1',
+        amount: 75000,
+        sourceCategory: 'Stocks',
+        sourceName: 'Stocks — HDFC Nifty 50 Index Fund',
+        dateReceived: '2026-09-05',
+        reason: 'Redeemed',
+        remarks: 'Partial profit booking from mutual fund portfolio'
       }
     ]
   }

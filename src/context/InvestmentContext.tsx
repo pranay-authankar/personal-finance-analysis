@@ -1,10 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { FamilyMember, FixedDeposit, PostOfficeInvestment, BullionInvestment, PortfolioSummary } from '../types';
+import type {
+  FamilyMember,
+  FixedDeposit,
+  PostOfficeInvestment,
+  BullionInvestment,
+  RealizedFund,
+  RealizedSourceCategory,
+  RealizedReason,
+  PortfolioSummary
+} from '../types';
 import { DEFAULT_SEED_MEMBERS } from '../data/seedData';
 import { getEffectiveBullionValue } from '../utils/bullionCalculations';
 
 const STORAGE_KEYS = {
-  MEMBERS: 'familyvault_members_data_v3', // v3 to include bullions structures
+  MEMBERS: 'familyvault_members_data_v4', // v4 to include realized funds
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id',
   IS_AUTHENTICATED: 'familyvault_authenticated'
 };
@@ -34,6 +43,19 @@ interface InvestmentContextType {
   addOrUpdateBullion: (b: Partial<BullionInvestment>) => BullionInvestment;
   deleteBullion: (id: string) => void;
   getBullionById: (id: string) => BullionInvestment | undefined;
+
+  // Realized Funds
+  addOrUpdateRealizedFund: (rf: Partial<RealizedFund>) => RealizedFund;
+  deleteRealizedFund: (id: string) => void;
+  getRealizedFundById: (id: string) => RealizedFund | undefined;
+  realizeInvestment: (payload: {
+    sourceCategory: RealizedSourceCategory;
+    sourceId: string;
+    amount: number;
+    dateReceived: string;
+    reason: RealizedReason;
+    remarks?: string;
+  }) => RealizedFund;
 
   // Calculations
   getPortfolioSummary: (member?: FamilyMember) => PortfolioSummary;
@@ -332,52 +354,213 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return activeMember.bullionsInvestments?.find((b) => b.id === id);
   };
 
-  // Portfolio Summary Calculation
+  // Realized Funds Management
+  const addOrUpdateRealizedFund = (rf: Partial<RealizedFund>): RealizedFund => {
+    let savedRf: RealizedFund;
+
+    setMembers((prevMembers) =>
+      prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+
+        const currentRfs = member.realizedFunds || [];
+        const isEdit = Boolean(rf.id);
+
+        if (isEdit) {
+          savedRf = {
+            ...(currentRfs.find((item) => item.id === rf.id) || {
+              id: rf.id!,
+              amount: 0,
+              sourceCategory: 'Other',
+              sourceName: '',
+              dateReceived: new Date().toISOString().split('T')[0],
+              reason: 'Other'
+            }),
+            ...rf
+          } as RealizedFund;
+
+          const updatedRfs = currentRfs.map((item) => (item.id === rf.id ? savedRf : item));
+          return {
+            ...member,
+            realizedFunds: updatedRfs
+          };
+        } else {
+          savedRf = {
+            id: `rf_${Date.now()}`,
+            amount: Number(rf.amount) || 0,
+            sourceCategory: rf.sourceCategory || 'Other',
+            sourceName: (rf.sourceName || '').trim(),
+            dateReceived: rf.dateReceived || new Date().toISOString().split('T')[0],
+            reason: rf.reason || 'Other',
+            remarks: rf.remarks?.trim() || '',
+            sourceInvestmentId: rf.sourceInvestmentId
+          };
+
+          return {
+            ...member,
+            realizedFunds: [savedRf, ...currentRfs]
+          };
+        }
+      })
+    );
+
+    return savedRf!;
+  };
+
+  const deleteRealizedFund = (id: string) => {
+    setMembers((prevMembers) =>
+      prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+        const rfs = (member.realizedFunds || []).filter((r) => r.id !== id);
+        return {
+          ...member,
+          realizedFunds: rfs
+        };
+      })
+    );
+  };
+
+  const getRealizedFundById = (id: string): RealizedFund | undefined => {
+    return activeMember.realizedFunds?.find((r) => r.id === id);
+  };
+
+  const realizeInvestment = (payload: {
+    sourceCategory: RealizedSourceCategory;
+    sourceId: string;
+    amount: number;
+    dateReceived: string;
+    reason: RealizedReason;
+    remarks?: string;
+  }): RealizedFund => {
+    let createdRf: RealizedFund;
+
+    setMembers((prevMembers) =>
+      prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+
+        let updatedFds = member.fds || [];
+        let updatedPos = member.postOfficeInvestments || [];
+        let updatedBuls = member.bullionsInvestments || [];
+        let defaultSourceName = '';
+
+        if (payload.sourceCategory === 'FD') {
+          const fd = updatedFds.find((f) => f.id === payload.sourceId);
+          defaultSourceName = fd ? `FD — ${fd.bankName}` : 'Fixed Deposit';
+          updatedFds = updatedFds.map((f) =>
+            f.id === payload.sourceId
+              ? { ...f, status: payload.reason === 'Redeemed' ? 'redeemed' : 'matured' }
+              : f
+          );
+        } else if (payload.sourceCategory === 'Post Office') {
+          const po = updatedPos.find((p) => p.id === payload.sourceId);
+          defaultSourceName = po ? `Post Office — ${po.schemeName}` : 'Post Office';
+          updatedPos = updatedPos.map((p) =>
+            p.id === payload.sourceId
+              ? { ...p, status: payload.reason === 'Redeemed' ? 'redeemed' : 'matured' }
+              : p
+          );
+        } else if (payload.sourceCategory === 'Bullions') {
+          const bul = updatedBuls.find((b) => b.id === payload.sourceId);
+          defaultSourceName = bul ? `${bul.typeName} — ${bul.itemName}` : 'Bullion';
+          updatedBuls = updatedBuls.map((b) =>
+            b.id === payload.sourceId ? { ...b, status: 'sold' } : b
+          );
+        } else {
+          defaultSourceName = payload.sourceCategory;
+        }
+
+        createdRf = {
+          id: `rf_${Date.now()}`,
+          amount: Number(payload.amount) || 0,
+          sourceCategory: payload.sourceCategory,
+          sourceName: defaultSourceName,
+          dateReceived: payload.dateReceived,
+          reason: payload.reason,
+          remarks: payload.remarks || '',
+          sourceInvestmentId: payload.sourceId
+        };
+
+        const existingRfs = member.realizedFunds || [];
+        return {
+          ...member,
+          fds: updatedFds,
+          postOfficeInvestments: updatedPos,
+          bullionsInvestments: updatedBuls,
+          realizedFunds: [createdRf, ...existingRfs]
+        };
+      })
+    );
+
+    return createdRf!;
+  };
+
+  // Portfolio Summary Calculation (Active Investments + Realized Funds)
   const getPortfolioSummary = (memberTarget?: FamilyMember): PortfolioSummary => {
     const target = memberTarget || activeMember;
     if (!target) {
       return {
         total: 0,
+        activeInvestmentsTotal: 0,
         fdTotal: 0,
         postOfficeTotal: 0,
         bullionsTotal: 0,
-        breakdown: { fds: 0, postOffice: 0, stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }
+        realizedFundsTotal: 0,
+        breakdown: { fds: 0, postOffice: 0, stocksMf: 0, realEstate: 0, bullions: 0, realizedFunds: 0 }
       };
     }
 
+    // 1. Fixed Deposits: Only active deposits contribute to active FD valuation
     const fds = target.fds || [];
-    const fdTotal = fds.reduce((sum, f) => sum + (Number(f.principal) || 0), 0);
+    const activeFds = fds.filter((f) => !f.status || f.status === 'active');
+    const fdTotal = activeFds.reduce((sum, f) => sum + (Number(f.principal) || 0), 0);
 
+    // 2. Post Office: Only active schemes contribute
     const poList = target.postOfficeInvestments || [];
-    const poCalculatedTotal = poList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const postOfficeTotal = poCalculatedTotal > 0 ? poCalculatedTotal : (target.otherAssets?.postOffice || 0);
+    const activePos = poList.filter((p) => !p.status || p.status === 'active');
+    const poCalculatedTotal = activePos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const postOfficeTotal = poCalculatedTotal > 0
+      ? poCalculatedTotal
+      : (poList.length === 0 ? (target.otherAssets?.postOffice || 0) : 0);
 
+    // 3. Bullions: Only active physical holdings with sufficient value contribute
     const bulList = target.bullionsInvestments || [];
-    // Only entries with sufficient value contribute to the total!
-    const bulCalculatedTotal = bulList.reduce((sum, b) => {
+    const activeBuls = bulList.filter((b) => !b.status || b.status === 'active');
+    const bulCalculatedTotal = activeBuls.reduce((sum, b) => {
       return sum + getEffectiveBullionValue(b);
     }, 0);
-    const bullionsTotal = bulList.length > 0 ? bulCalculatedTotal : (target.otherAssets?.bullions || 0);
+    const bullionsTotal = activeBuls.length > 0
+      ? bulCalculatedTotal
+      : (bulList.length === 0 ? (target.otherAssets?.bullions || 0) : 0);
 
-    const o = target.otherAssets || { stocksMf: 0, realEstate: 0, cashInHand: 0 };
+    // 4. Other Assets (Stocks & Real Estate)
+    const o = target.otherAssets || { stocksMf: 0, realEstate: 0 };
     const stocksMf = o.stocksMf || 0;
     const realEstate = o.realEstate || 0;
-    const cashInHand = o.cashInHand || 0;
 
-    const total = fdTotal + postOfficeTotal + bullionsTotal + stocksMf + realEstate + cashInHand;
+    // 5. Realized Funds: Money received when an asset was sold, matured, or redeemed
+    const rfList = target.realizedFunds || [];
+    const rfCalculatedTotal = rfList.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const realizedFundsTotal = rfList.length > 0
+      ? rfCalculatedTotal
+      : (target.otherAssets?.realizedFunds ?? target.otherAssets?.cashInHand ?? 0);
+
+    // Overall Home Tracked Wealth = Active Investments + Realized Funds
+    const activeInvestmentsTotal = fdTotal + postOfficeTotal + bullionsTotal + stocksMf + realEstate;
+    const total = activeInvestmentsTotal + realizedFundsTotal;
 
     return {
       total,
+      activeInvestmentsTotal,
       fdTotal,
       postOfficeTotal,
       bullionsTotal,
+      realizedFundsTotal,
       breakdown: {
         fds: fdTotal,
         postOffice: postOfficeTotal,
         stocksMf,
         realEstate,
         bullions: bullionsTotal,
-        cashInHand
+        realizedFunds: realizedFundsTotal
       }
     };
   };
@@ -403,6 +586,10 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addOrUpdateBullion,
         deleteBullion,
         getBullionById,
+        addOrUpdateRealizedFund,
+        deleteRealizedFund,
+        getRealizedFundById,
+        realizeInvestment,
         getPortfolioSummary
       }}
     >

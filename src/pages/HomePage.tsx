@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency } from '../utils/calculations';
 import { DonutChart } from '../components/DonutChart';
-import { Landmark, Mail, Coins, ArrowRight, PlusCircle, Users, ArrowUpRight } from 'lucide-react';
+import { Landmark, Mail, Coins, Wallet, ArrowRight, PlusCircle, Users, ArrowUpRight } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -15,6 +15,7 @@ export const HomePage: React.FC = () => {
   const fdCount = activeMember.fds?.length || 0;
   const poCount = activeMember.postOfficeInvestments?.length || 0;
   const bulCount = activeMember.bullionsInvestments?.length || 0;
+  const realizedCount = activeMember.realizedFunds?.length || 0;
 
   return (
     <div className="main-content fade-in">
@@ -28,7 +29,10 @@ export const HomePage: React.FC = () => {
             <div className="home-total-investment-display">
               <span className="home-currency-symbol">₹</span>
               <span className="home-total-number">{formatCurrency(summary.total)}</span>
-              <span style={{ fontSize: '13px', color: '#93C5FD', marginLeft: '6px' }}>Total Net Worth</span>
+              <span style={{ fontSize: '13px', color: '#93C5FD', marginLeft: '6px' }}>Total Tracked Wealth</span>
+            </div>
+            <div style={{ fontSize: '12px', color: '#BFDBFE', marginTop: '6px' }}>
+              Active Investments: <strong>₹ {formatCurrency(summary.activeInvestmentsTotal)}</strong> + Realized Funds: <strong>₹ {formatCurrency(summary.realizedFundsTotal)}</strong>
             </div>
           </div>
         </div>
@@ -91,6 +95,25 @@ export const HomePage: React.FC = () => {
               <span style={{ color: '#FCD34D', fontWeight: 600 }}>Manage &rarr;</span>
             </div>
           </div>
+
+          {/* Realized Funds Action Card */}
+          <div
+            className="home-hero-right-action"
+            onClick={() => navigate('/realized-funds')}
+            role="button"
+            tabIndex={0}
+            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(20, 184, 166, 0.4)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="hero-fd-label" style={{ color: '#5EEAD4' }}>Realized Funds</span>
+              <ArrowUpRight size={15} color="#5EEAD4" />
+            </div>
+            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.realizedFundsTotal)}</div>
+            <div className="hero-fd-meta">
+              <span>{realizedCount} Entries</span>
+              <span style={{ color: '#5EEAD4', fontWeight: 600 }}>Manage &rarr;</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -123,6 +146,14 @@ export const HomePage: React.FC = () => {
           >
             <PlusCircle size={16} />
             <span>+ Add Bullion</span>
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ background: '#0D9488', borderColor: '#0F766E' }}
+            onClick={() => navigate('/add-realized-fund')}
+          >
+            <PlusCircle size={16} />
+            <span>+ Add Realized Fund</span>
           </button>
         </div>
       </div>
@@ -227,6 +258,37 @@ export const HomePage: React.FC = () => {
             className="btn btn-primary btn-sm"
             style={{ background: '#D97706', borderColor: '#B45309' }}
             onClick={() => navigate('/bullions')}
+          >
+            <span>Open</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div style={{
+          background: '#F0FDFA',
+          border: '1px solid #99F6E4',
+          borderRadius: 'var(--radius-lg)',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0D9488', boxShadow: 'var(--shadow-xs)' }}>
+              <Wallet size={20} />
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Realized Funds</strong>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                {realizedCount} proceeds received from matured, sold, or redeemed assets.
+              </p>
+            </div>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ background: '#0D9488', borderColor: '#0F766E' }}
+            onClick={() => navigate('/realized-funds')}
           >
             <span>Open</span>
             <ArrowRight size={14} />

@@ -4,6 +4,7 @@ import { useInvestments } from '../context/InvestmentContext';
 import { calculateFDValues, formatCurrency, formatDate } from '../utils/calculations';
 import { getMaturityClassification } from '../utils/maturityColorMap';
 import { PhotoModal } from '../components/PhotoModal';
+import { RealizeAssetModal } from '../components/RealizeAssetModal';
 import {
   ChevronLeft,
   Edit3,
@@ -12,7 +13,9 @@ import {
   Calendar,
   Clock,
   Image as ImageIcon,
-  ZoomIn
+  ZoomIn,
+  Wallet,
+  CheckCircle2
 } from 'lucide-react';
 
 interface FdDetailsPageProps {
@@ -24,6 +27,7 @@ export const FdDetailsPage: React.FC<FdDetailsPageProps> = ({ onShowToast }) => 
   const navigate = useNavigate();
   const { getFdById, deleteFd, activeMember } = useInvestments();
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isRealizeModalOpen, setIsRealizeModalOpen] = useState(false);
 
   const fd = id ? getFdById(id) : undefined;
 
@@ -68,6 +72,45 @@ export const FdDetailsPage: React.FC<FdDetailsPageProps> = ({ onShowToast }) => 
           <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{fd.bankName}</span>
         </nav>
       </div>
+
+      {/* If already matured/redeemed, show status notice */}
+      {(fd.status === 'matured' || fd.status === 'redeemed') && (
+        <div
+          style={{
+            background: '#ECFDF5',
+            border: '1px solid #A7F3D0',
+            borderRadius: 'var(--radius-lg)',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <CheckCircle2 size={24} color="#047857" />
+            <div>
+              <strong style={{ color: '#065F46', fontSize: '15px' }}>
+                FD Matured &amp; Proceeds Transferred to Realized Funds
+              </strong>
+              <p style={{ color: '#047857', fontSize: '13px', margin: '2px 0 0 0' }}>
+                Active principal valuation is ₹0. Proceeds are tracked in Realized Funds to maintain overall family portfolio wealth.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => navigate('/realized-funds')}
+            style={{ background: 'white', color: '#047857', borderColor: '#A7F3D0', fontWeight: 600 }}
+          >
+            <span>View in Realized Funds &rarr;</span>
+          </button>
+        </div>
+      )}
 
       <div className="details-page-card">
         {/* Urgency Countdown Banner (Maturity Colour Map) */}
@@ -208,7 +251,19 @@ export const FdDetailsPage: React.FC<FdDetailsPageProps> = ({ onShowToast }) => 
               <span>Back to FD List</span>
             </button>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {(!fd.status || fd.status === 'active') && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ background: '#0D9488', borderColor: '#0F766E' }}
+                  onClick={() => setIsRealizeModalOpen(true)}
+                >
+                  <Wallet size={16} />
+                  <span>Move to Realized Funds</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="btn btn-danger"
@@ -234,6 +289,19 @@ export const FdDetailsPage: React.FC<FdDetailsPageProps> = ({ onShowToast }) => 
       <PhotoModal
         photoUrl={isPhotoModalOpen ? fd.photoUrl || null : null}
         onClose={() => setIsPhotoModalOpen(false)}
+      />
+
+      <RealizeAssetModal
+        isOpen={isRealizeModalOpen}
+        onClose={() => setIsRealizeModalOpen(false)}
+        assetCategory="FD"
+        assetId={fd.id}
+        assetName={`${fd.bankName} (${fd.accountNumber})`}
+        suggestedAmount={calc.maturityAmount}
+        defaultReason="Matured"
+        onSuccess={(amt, r) => {
+          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})!`, 'success');
+        }}
       />
     </div>
   );

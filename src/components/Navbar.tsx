@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import { Layers, PieChart, Landmark, Mail, Coins, RotateCcw, LogOut, ChevronDown } from 'lucide-react';
+import { Layers, PieChart, Landmark, Mail, Coins, Wallet, RotateCcw, LogOut, ChevronDown } from 'lucide-react';
 
 interface NavbarProps {
   onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
@@ -18,10 +18,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
   const isFds = location.pathname.startsWith('/fds');
   const isPostOffice = location.pathname.startsWith('/post-office');
   const isBullions = location.pathname.startsWith('/bullions');
+  const isRealized = location.pathname.startsWith('/realized-funds');
 
   const fdCount = activeMember?.fds?.length || 0;
   const poCount = activeMember?.postOfficeInvestments?.length || 0;
   const bulCount = activeMember?.bullionsInvestments?.length || 0;
+  const realizedCount = activeMember?.realizedFunds?.length || 0;
 
   const handleReset = () => {
     if (window.confirm('Reset all investment data back to clean family sample records?')) {
@@ -86,6 +88,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
             <Coins size={18} strokeWidth={2} />
             <span>Bullions</span>
             <span className="nav-pill-badge" style={{ background: '#D97706' }}>{bulCount}</span>
+          </button>
+
+          <button
+            className={`nav-tab ${isRealized ? 'active' : ''}`}
+            onClick={() => navigate('/realized-funds')}
+          >
+            <Wallet size={18} strokeWidth={2} />
+            <span>Realized Funds</span>
+            <span className="nav-pill-badge" style={{ background: '#0D9488' }}>{realizedCount}</span>
           </button>
         </nav>
 
