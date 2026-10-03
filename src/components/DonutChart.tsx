@@ -10,11 +10,12 @@ interface CategoryConfig {
   icon: string;
   color: string;
   isFunctional: boolean;
+  route?: string;
 }
 
 const CATEGORIES: CategoryConfig[] = [
-  { id: 'fds', name: 'Fixed Deposits (FDs)', icon: '🏦', color: '#2563EB', isFunctional: true },
-  { id: 'postOffice', name: 'Post Office', icon: '📮', color: '#EA580C', isFunctional: false },
+  { id: 'fds', name: 'Fixed Deposits (FDs)', icon: '🏦', color: '#2563EB', isFunctional: true, route: '/fds' },
+  { id: 'postOffice', name: 'Post Office', icon: '📮', color: '#EA580C', isFunctional: true, route: '/post-office' },
   { id: 'stocksMf', name: 'Stocks & MFs', icon: '📈', color: '#059669', isFunctional: false },
   { id: 'realEstate', name: 'Real Estate', icon: '🏡', color: '#7C3AED', isFunctional: false },
   { id: 'bullions', name: 'Bullions (Gold/Silver)', icon: '🪙', color: '#D97706', isFunctional: false },
@@ -73,7 +74,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
       {/* SVG Donut Visual */}
       <div className="donut-visual-container">
         <svg className="donut-svg" viewBox="0 0 240 240">
-          {/* Background track circle */}
           <circle
             cx="120"
             cy="120"
@@ -83,7 +83,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
             strokeWidth="22"
           />
 
-          {/* Slices */}
           {slices.map((slice) => {
             if (slice.value <= 0) return null;
             return (
@@ -102,10 +101,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
                 onMouseEnter={() => setHoveredCategory(slice)}
                 onMouseLeave={() => setHoveredCategory(null)}
                 onClick={() => {
-                  if (slice.isFunctional) navigate('/fds');
+                  if (slice.route) navigate(slice.route);
                 }}
                 style={{
-                  cursor: slice.isFunctional ? 'pointer' : 'default',
+                  cursor: slice.route ? 'pointer' : 'default',
                   transition: 'stroke-width 0.2s ease, opacity 0.2s ease',
                   opacity: hoveredCategory && hoveredCategory.id !== slice.id ? 0.6 : 1
                 }}
@@ -114,7 +113,6 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
           })}
         </svg>
 
-        {/* Center Text */}
         <div className="donut-center-info">
           <span className="donut-center-name">{activeCategory.name.split(' (')[0]}</span>
           <div className="donut-center-value">₹ {formatCurrency(activeValue)}</div>
@@ -136,7 +134,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
               onMouseEnter={() => setHoveredCategory(cat)}
               onMouseLeave={() => setHoveredCategory(null)}
               onClick={() => {
-                if (cat.isFunctional) navigate('/fds');
+                if (cat.route) navigate(cat.route);
               }}
             >
               <div className="category-tile-head">
@@ -145,7 +143,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
                   <span className="category-title">{cat.name}</span>
                 </div>
                 {cat.isFunctional ? (
-                  <span className="category-badge-pill badge-active-v1">Active V1</span>
+                  <span className="category-badge-pill badge-active-v1">Active</span>
                 ) : (
                   <span className="category-badge-pill badge-v2-placeholder">V2 Planned</span>
                 )}
@@ -158,7 +156,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
 
               {cat.isFunctional && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600, marginTop: '4px' }}>
-                  <span>Open FD Dashboard</span>
+                  <span>Open {cat.name.split(' (')[0]} Section</span>
                   <ArrowRight size={14} />
                 </div>
               )}

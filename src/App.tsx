@@ -8,6 +8,9 @@ import { HomePage } from './pages/HomePage';
 import { FdDashboardPage } from './pages/FdDashboardPage';
 import { FdDetailsPage } from './pages/FdDetailsPage';
 import { AddFdPage } from './pages/AddFdPage';
+import { PostOfficeDashboardPage } from './pages/PostOfficeDashboardPage';
+import { PostOfficeDetailsPage } from './pages/PostOfficeDetailsPage';
+import { AddPostOfficePage } from './pages/AddPostOfficePage';
 
 import './styles/global.css';
 import './styles/components.css';
@@ -64,6 +67,7 @@ const AppContent: React.FC = () => {
           }
         />
 
+        {/* Fixed Deposits Routes */}
         <Route
           path="/fds"
           element={
@@ -87,6 +91,34 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <AddFdPage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Post Office Routes */}
+        <Route
+          path="/post-office"
+          element={
+            <ProtectedRoute>
+              <PostOfficeDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/post-office/:id"
+          element={
+            <ProtectedRoute>
+              <PostOfficeDetailsPage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/add-post-office"
+          element={
+            <ProtectedRoute>
+              <AddPostOfficePage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />

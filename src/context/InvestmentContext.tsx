@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { FamilyMember, FixedDeposit, PortfolioSummary } from '../types';
+import type { FamilyMember, FixedDeposit, PostOfficeInvestment, PortfolioSummary } from '../types';
 import { DEFAULT_SEED_MEMBERS } from '../data/seedData';
 
 const STORAGE_KEYS = {
-  MEMBERS: 'familyvault_members_data',
+  MEMBERS: 'familyvault_members_data_v2', // v2 to pick up post office structures
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id',
   IS_AUTHENTICATED: 'familyvault_authenticated'
 };
@@ -18,10 +18,19 @@ interface InvestmentContextType {
   resetDemoData: () => void;
   setActiveMemberId: (id: string) => void;
   addMember: (name: string, role: string, avatar: string) => FamilyMember;
+
+  // Fixed Deposits
   addOrUpdateFd: (fd: Partial<FixedDeposit>) => FixedDeposit;
   deleteFd: (id: string) => void;
-  getPortfolioSummary: (member?: FamilyMember) => PortfolioSummary;
   getFdById: (id: string) => FixedDeposit | undefined;
+
+  // Post Office Investments
+  addOrUpdatePostOffice: (po: Partial<PostOfficeInvestment>) => PostOfficeInvestment;
+  deletePostOffice: (id: string) => void;
+  getPostOfficeById: (id: string) => PostOfficeInvestment | undefined;
+
+  // Calculations
+  getPortfolioSummary: (member?: FamilyMember) => PortfolioSummary;
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
@@ -95,7 +104,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         bullions: 0,
         cashInHand: 0
       },
-      fds: []
+      fds: [],
+      postOfficeInvestments: []
     };
 
     setMembers((prev) => [...prev, newMember]);
@@ -103,6 +113,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return newMember;
   };
 
+  // Fixed Deposits
   const addOrUpdateFd = (fdData: Partial<FixedDeposit>): FixedDeposit => {
     let savedFd: FixedDeposit;
 
@@ -112,7 +123,6 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
         const fds = [...(member.fds || [])];
         if (fdData.id) {
-          // Update
           const index = fds.findIndex((f) => f.id === fdData.id);
           if (index !== -1) {
             savedFd = { ...fds[index], ...fdData } as FixedDeposit;
@@ -122,7 +132,6 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             fds.push(savedFd);
           }
         } else {
-          // Add new
           savedFd = {
             id: `fd_${Date.now()}`,
             bankName: fdData.bankName || 'Other Bank',
@@ -156,35 +165,128 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const getFdById = (id: string): FixedDeposit | undefined => {
-    return activeMember.fds.find((f) => f.id === id);
+    return activeMember.fds?.find((f) => f.id === id);
   };
 
+  // Post Office Investments
+  const addOrUpdatePostOffice = (poData: Partial<PostOfficeInvestment>): PostOfficeInvestment => {
+    let savedPo: PostOfficeInvestment;
+
+    setMembers((prevMembers) => {
+      return prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+
+        const pos = [...(member.postOfficeInvestments || [])];
+        if (poData.id) {
+          const index = pos.findIndex((p) => p.id === poData.id);
+          if (index !== -1) {
+            savedPo = { ...pos[index], ...poData } as PostOfficeInvestment;
+            pos[index] = savedPo;
+          } else {
+            savedPo = poData as PostOfficeInvestment;
+            pos.push(savedPo);
+          }
+        } else {
+          savedPo = {
+            id: `po_${Date.now()}`,
+            schemeType: poData.schemeType || 'POTD',
+            schemeName: poData.schemeName || 'Post Office Scheme',
+            accountNumber: poData.accountNumber || `PO-${Math.floor(10000 + Math.random() * 90000)}`,
+            amount: Number(poData.amount) || 0,
+            openingDate: poData.openingDate || new Date().toISOString().split('T')[0],
+            maturityDate: poData.maturityDate || new Date().toISOString().split('T')[0],
+            interestRate: poData.interestRate !== undefined ? Number(poData.interestRate) : undefined,
+            branch: poData.branch || 'Head Post Office',
+            nominee: poData.nominee || '',
+            photoUrl: poData.photoUrl || '',
+            monthlyInstallment: poData.monthlyInstallment,
+            monthlyPayout: poData.monthlyPayout,
+            quarterlyPayout: poData.quarterlyPayout,
+            tenureYears: poData.tenureYears,
+            financialYearContribution: poData.financialYearContribution,
+            currentBalance: poData.currentBalance,
+            girlChildName: poData.girlChildName,
+            girlChildDob: poData.girlChildDob,
+            guardianName: poData.guardianName,
+            maturityAmount: poData.maturityAmount
+          };
+          pos.push(savedPo);
+        }
+
+        // Sync otherAssets.postOffice total with actual sum of investments
+        const newPostOfficeTotal = pos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const updatedOtherAssets = {
+          ...(member.otherAssets || { stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }),
+          postOffice: newPostOfficeTotal
+        };
+
+        return { ...member, postOfficeInvestments: pos, otherAssets: updatedOtherAssets };
+      });
+    });
+
+    return savedPo!;
+  };
+
+  const deletePostOffice = (id: string) => {
+    setMembers((prevMembers) =>
+      prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+        const pos = (member.postOfficeInvestments || []).filter((p) => p.id !== id);
+        const newPostOfficeTotal = pos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        return {
+          ...member,
+          postOfficeInvestments: pos,
+          otherAssets: {
+            ...(member.otherAssets || { stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }),
+            postOffice: newPostOfficeTotal
+          }
+        };
+      })
+    );
+  };
+
+  const getPostOfficeById = (id: string): PostOfficeInvestment | undefined => {
+    return activeMember.postOfficeInvestments?.find((p) => p.id === id);
+  };
+
+  // Portfolio Summary Calculation
   const getPortfolioSummary = (memberTarget?: FamilyMember): PortfolioSummary => {
     const target = memberTarget || activeMember;
     if (!target) {
       return {
         total: 0,
         fdTotal: 0,
+        postOfficeTotal: 0,
         breakdown: { fds: 0, postOffice: 0, stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }
       };
     }
 
     const fds = target.fds || [];
     const fdTotal = fds.reduce((sum, f) => sum + (Number(f.principal) || 0), 0);
-    const o = target.otherAssets || { postOffice: 0, stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 };
 
-    const total = fdTotal + (o.postOffice || 0) + (o.stocksMf || 0) + (o.realEstate || 0) + (o.bullions || 0) + (o.cashInHand || 0);
+    const poList = target.postOfficeInvestments || [];
+    const poCalculatedTotal = poList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const postOfficeTotal = poCalculatedTotal > 0 ? poCalculatedTotal : (target.otherAssets?.postOffice || 0);
+
+    const o = target.otherAssets || { stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 };
+    const stocksMf = o.stocksMf || 0;
+    const realEstate = o.realEstate || 0;
+    const bullions = o.bullions || 0;
+    const cashInHand = o.cashInHand || 0;
+
+    const total = fdTotal + postOfficeTotal + stocksMf + realEstate + bullions + cashInHand;
 
     return {
       total,
       fdTotal,
+      postOfficeTotal,
       breakdown: {
         fds: fdTotal,
-        postOffice: o.postOffice || 0,
-        stocksMf: o.stocksMf || 0,
-        realEstate: o.realEstate || 0,
-        bullions: o.bullions || 0,
-        cashInHand: o.cashInHand || 0
+        postOffice: postOfficeTotal,
+        stocksMf,
+        realEstate,
+        bullions,
+        cashInHand
       }
     };
   };
@@ -203,8 +305,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addMember,
         addOrUpdateFd,
         deleteFd,
-        getPortfolioSummary,
-        getFdById
+        getFdById,
+        addOrUpdatePostOffice,
+        deletePostOffice,
+        getPostOfficeById,
+        getPortfolioSummary
       }}
     >
       {children}

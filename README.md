@@ -14,13 +14,35 @@ A modern, high-visibility desktop web application built with **React 19**, **Typ
 
 ### 2. Asset Allocation & Interactive SVG Donut Chart
 - Visual distribution across **6 Core Asset Categories**:
-  - 🏦 **Fixed Deposits (FDs)** — *Active & Functional in V1*
-  - 📮 **Post Office Time Deposits** — *(V2 Planned)*
+  - 🏦 **Fixed Deposits (FDs)** — *Active & Functional*
+  - 📮 **Post Office Savings Schemes** — *Active & Functional*
   - 📈 **Stocks & Mutual Funds** — *(V2 Planned)*
   - 🏡 **Real Estate** — *(V2 Planned)*
   - 🪙 **Bullions (Gold/Silver)** — *(V2 Planned)*
   - 💵 **Cash in Hand** — *(V2 Planned)*
-- Interactive center statistics on slice hover and instant 1-click drill-down into Fixed Deposits.
+- Interactive center statistics on slice hover and instant 1-click drill-down into FDs or Post Office.
+
+### 3. Post Office Savings & Investment Vault
+- **Multi-Scheme Support**:
+  - **RD** (Recurring Deposit — monthly installment, 5-year quarterly compounding)
+  - **MIS** (Monthly Income Scheme — guaranteed monthly pension-like payouts)
+  - **POTD** (Post Office Time Deposit — 1, 2, 3, or 5-year fixed deposits)
+  - **SCSS** (Senior Citizen Savings Scheme — high yield quarterly returns)
+  - **PPF** (Public Provident Fund — 15-year sovereign savings with EEE tax exemption)
+  - **NSC** (National Savings Certificate — 5-year compounded return)
+  - **KVP** (Kisan Vikas Patra — doubles money at maturity)
+  - **Sukanya Samriddhi Account** (Dedicated welfare scheme for girl children)
+  - **Mahila Samman Savings Certificate** (2-year exclusive deposit for women)
+- **Top Financial Summary**:
+  - Total Post Office investment value
+  - Total monthly guaranteed income (MIS)
+  - Total quarterly senior returns (SCSS)
+  - Scheme-wise interactive distribution Donut Chart
+- **Dynamic Add Investment Form**:
+  - Visual scheme selector with live government interest rates
+  - Scheme-specific fields & live interest/payout calculations
+  - Passbook / document photo upload with lightbox zoom modal
+
 
 ### 3. Dedicated Fixed Deposit Dashboard
 - **Aggregate Financial Summary**:

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import { Layers, PieChart, Landmark, RotateCcw, LogOut, ChevronDown } from 'lucide-react';
+import { Layers, PieChart, Landmark, Mail, RotateCcw, LogOut, ChevronDown } from 'lucide-react';
 
 interface NavbarProps {
   onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
@@ -16,7 +16,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
 
   const isHome = location.pathname === '/home';
   const isFds = location.pathname.startsWith('/fds');
+  const isPostOffice = location.pathname.startsWith('/post-office');
   const fdCount = activeMember?.fds?.length || 0;
+  const poCount = activeMember?.postOfficeInvestments?.length || 0;
 
   const handleReset = () => {
     if (window.confirm('Reset all investment data back to clean family sample records?')) {
@@ -55,6 +57,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
             <PieChart size={18} strokeWidth={2} />
             <span>Portfolio Overview</span>
           </button>
+
           <button
             className={`nav-tab ${isFds ? 'active' : ''}`}
             onClick={() => navigate('/fds')}
@@ -62,6 +65,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
             <Landmark size={18} strokeWidth={2} />
             <span>Fixed Deposits (FDs)</span>
             <span className="nav-pill-badge">{fdCount}</span>
+          </button>
+
+          <button
+            className={`nav-tab ${isPostOffice ? 'active' : ''}`}
+            onClick={() => navigate('/post-office')}
+          >
+            <Mail size={18} strokeWidth={2} />
+            <span>Post Office</span>
+            <span className="nav-pill-badge" style={{ background: '#EA580C' }}>{poCount}</span>
           </button>
         </nav>
 
