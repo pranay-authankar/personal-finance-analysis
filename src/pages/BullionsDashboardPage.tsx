@@ -28,7 +28,10 @@ export const BullionsDashboardPage: React.FC = () => {
   const [sort, setSort] = useState<string>('value-desc');
   const [search, setSearch] = useState('');
 
-  const rawInvestments = activeMember?.bullionsInvestments || [];
+  // Only active holdings are displayed in the current investment section
+  const rawInvestments = useMemo(() => {
+    return (activeMember?.bullionsInvestments || []).filter((b) => !b.status || b.status === 'active');
+  }, [activeMember?.bullionsInvestments]);
 
   // Summary Metrics calculations
   const { totalVerifiedValue, verifiedCount, unverifiedCount } = useMemo(() => {

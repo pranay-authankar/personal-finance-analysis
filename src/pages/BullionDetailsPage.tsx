@@ -376,7 +376,8 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
         suggestedAmount={effectiveValue}
         defaultReason="Sold"
         onSuccess={(amt, r) => {
-          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})!`, 'success');
+          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})! Removed from active Bullions.`, 'success');
+          navigate('/realized-funds');
         }}
       />
     </div>

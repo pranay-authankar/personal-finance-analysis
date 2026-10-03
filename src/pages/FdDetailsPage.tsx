@@ -298,9 +298,9 @@ export const FdDetailsPage: React.FC<FdDetailsPageProps> = ({ onShowToast }) => 
         assetId={fd.id}
         assetName={`${fd.bankName} (${fd.accountNumber})`}
         suggestedAmount={calc.maturityAmount}
-        defaultReason="Matured"
         onSuccess={(amt, r) => {
-          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})!`, 'success');
+          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})! Removed from active Fixed Deposits.`, 'success');
+          navigate('/realized-funds');
         }}
       />
     </div>

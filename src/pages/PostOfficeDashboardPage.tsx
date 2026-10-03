@@ -28,7 +28,10 @@ export const PostOfficeDashboardPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showColorMapLegend, setShowColorMapLegend] = useState(false);
 
-  const rawInvestments = activeMember?.postOfficeInvestments || [];
+  // Only active schemes are displayed in the current investment section
+  const rawInvestments = useMemo(() => {
+    return (activeMember?.postOfficeInvestments || []).filter((inv) => !inv.status || inv.status === 'active');
+  }, [activeMember?.postOfficeInvestments]);
 
   // Metrics
   const totalValue = useMemo(() => {

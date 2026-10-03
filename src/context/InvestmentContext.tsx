@@ -445,25 +445,18 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (payload.sourceCategory === 'FD') {
           const fd = updatedFds.find((f) => f.id === payload.sourceId);
           defaultSourceName = fd ? `FD — ${fd.bankName}` : 'Fixed Deposit';
-          updatedFds = updatedFds.map((f) =>
-            f.id === payload.sourceId
-              ? { ...f, status: payload.reason === 'Redeemed' ? 'redeemed' : 'matured' }
-              : f
-          );
+          // Remove card completely from active Fixed Deposits
+          updatedFds = updatedFds.filter((f) => f.id !== payload.sourceId);
         } else if (payload.sourceCategory === 'Post Office') {
           const po = updatedPos.find((p) => p.id === payload.sourceId);
           defaultSourceName = po ? `Post Office — ${po.schemeName}` : 'Post Office';
-          updatedPos = updatedPos.map((p) =>
-            p.id === payload.sourceId
-              ? { ...p, status: payload.reason === 'Redeemed' ? 'redeemed' : 'matured' }
-              : p
-          );
+          // Remove card completely from active Post Office investments
+          updatedPos = updatedPos.filter((p) => p.id !== payload.sourceId);
         } else if (payload.sourceCategory === 'Bullions') {
           const bul = updatedBuls.find((b) => b.id === payload.sourceId);
           defaultSourceName = bul ? `${bul.typeName} — ${bul.itemName}` : 'Bullion';
-          updatedBuls = updatedBuls.map((b) =>
-            b.id === payload.sourceId ? { ...b, status: 'sold' } : b
-          );
+          // Remove card completely from active Bullions
+          updatedBuls = updatedBuls.filter((b) => b.id !== payload.sourceId);
         } else {
           defaultSourceName = payload.sourceCategory;
         }

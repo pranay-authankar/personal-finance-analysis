@@ -26,7 +26,10 @@ export const FdDashboardPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showColorMapLegend, setShowColorMapLegend] = useState(false);
 
-  const rawFds = activeMember?.fds || [];
+  // Only active FDs are displayed in the current investment section
+  const rawFds = useMemo(() => {
+    return (activeMember?.fds || []).filter((f) => !f.status || f.status === 'active');
+  }, [activeMember?.fds]);
 
   // Summary Metrics calculations
   const totalPrincipal = useMemo(() => {

@@ -5,6 +5,7 @@ import { formatCurrency, formatDate } from '../utils/calculations';
 import { getMaturityClassification } from '../utils/maturityColorMap';
 import { SCHEME_METADATA } from '../utils/postOfficeCalculations';
 import { PhotoModal } from '../components/PhotoModal';
+import { RealizeAssetModal } from '../components/RealizeAssetModal';
 import {
   ChevronLeft,
   Edit3,
@@ -12,7 +13,8 @@ import {
   Calendar,
   Clock,
   Image as ImageIcon,
-  ZoomIn
+  ZoomIn,
+  Wallet
 } from 'lucide-react';
 
 interface PostOfficeDetailsPageProps {
@@ -24,6 +26,7 @@ export const PostOfficeDetailsPage: React.FC<PostOfficeDetailsPageProps> = ({ on
   const navigate = useNavigate();
   const { getPostOfficeById, deletePostOffice, activeMember } = useInvestments();
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [isRealizeModalOpen, setIsRealizeModalOpen] = useState(false);
 
   const inv = id ? getPostOfficeById(id) : undefined;
 
@@ -306,7 +309,17 @@ export const PostOfficeDetailsPage: React.FC<PostOfficeDetailsPageProps> = ({ on
               <span>Back to Post Office List</span>
             </button>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                style={{ background: '#0D9488', borderColor: '#0F766E' }}
+                onClick={() => setIsRealizeModalOpen(true)}
+              >
+                <Wallet size={16} />
+                <span>Move to Realized Funds</span>
+              </button>
+
               <button
                 type="button"
                 className="btn btn-danger"
@@ -333,6 +346,20 @@ export const PostOfficeDetailsPage: React.FC<PostOfficeDetailsPageProps> = ({ on
       <PhotoModal
         photoUrl={isPhotoModalOpen ? inv.photoUrl || null : null}
         onClose={() => setIsPhotoModalOpen(false)}
+      />
+
+      <RealizeAssetModal
+        isOpen={isRealizeModalOpen}
+        onClose={() => setIsRealizeModalOpen(false)}
+        assetCategory="Post Office"
+        assetId={inv.id}
+        assetName={`${inv.schemeName} (${inv.accountNumber})`}
+        suggestedAmount={inv.maturityAmount || inv.amount}
+        defaultReason="Matured"
+        onSuccess={(amt, r) => {
+          onShowToast(`Moved ₹${formatCurrency(amt)} to Realized Funds (${r})! Removed from active Post Office.`, 'success');
+          navigate('/realized-funds');
+        }}
       />
     </div>
   );
