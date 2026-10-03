@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency } from '../utils/calculations';
 import { DonutChart } from '../components/DonutChart';
-import { Landmark, Mail, ArrowRight, PlusCircle, Users, ArrowUpRight } from 'lucide-react';
+import { Landmark, Mail, Coins, ArrowRight, PlusCircle, Users, ArrowUpRight } from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -14,6 +14,7 @@ export const HomePage: React.FC = () => {
   const summary = getPortfolioSummary();
   const fdCount = activeMember.fds?.length || 0;
   const poCount = activeMember.postOfficeInvestments?.length || 0;
+  const bulCount = activeMember.bullionsInvestments?.length || 0;
 
   return (
     <div className="main-content fade-in">
@@ -33,22 +34,22 @@ export const HomePage: React.FC = () => {
         </div>
 
         {/* Action cards linking to active sections */}
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
           {/* FD Action Card */}
           <div
             className="home-hero-right-action"
             onClick={() => navigate('/fds')}
             role="button"
             tabIndex={0}
-            style={{ minWidth: '220px' }}
+            style={{ minWidth: '190px', padding: '16px 20px' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="hero-fd-label">Fixed Deposits</span>
-              <ArrowUpRight size={16} color="#6EE7B7" />
+              <ArrowUpRight size={15} color="#6EE7B7" />
             </div>
-            <div className="hero-fd-amount">₹ {formatCurrency(summary.fdTotal)}</div>
+            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.fdTotal)}</div>
             <div className="hero-fd-meta">
-              <span>{fdCount} Active {fdCount === 1 ? 'FD' : 'FDs'}</span>
+              <span>{fdCount} Active</span>
               <span style={{ color: '#6EE7B7', fontWeight: 600 }}>Manage &rarr;</span>
             </div>
           </div>
@@ -59,16 +60,35 @@ export const HomePage: React.FC = () => {
             onClick={() => navigate('/post-office')}
             role="button"
             tabIndex={0}
-            style={{ minWidth: '220px', borderColor: 'rgba(251, 146, 60, 0.4)' }}
+            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(251, 146, 60, 0.4)' }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="hero-fd-label" style={{ color: '#FDBA74' }}>Post Office</span>
-              <ArrowUpRight size={16} color="#FDBA74" />
+              <ArrowUpRight size={15} color="#FDBA74" />
             </div>
-            <div className="hero-fd-amount">₹ {formatCurrency(summary.postOfficeTotal)}</div>
+            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.postOfficeTotal)}</div>
             <div className="hero-fd-meta">
-              <span>{poCount} Active {poCount === 1 ? 'Scheme' : 'Schemes'}</span>
+              <span>{poCount} Active</span>
               <span style={{ color: '#FDBA74', fontWeight: 600 }}>Manage &rarr;</span>
+            </div>
+          </div>
+
+          {/* Bullions Action Card */}
+          <div
+            className="home-hero-right-action"
+            onClick={() => navigate('/bullions')}
+            role="button"
+            tabIndex={0}
+            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(252, 211, 77, 0.4)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span className="hero-fd-label" style={{ color: '#FCD34D' }}>Bullions</span>
+              <ArrowUpRight size={15} color="#FCD34D" />
+            </div>
+            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.bullionsTotal)}</div>
+            <div className="hero-fd-meta">
+              <span>{bulCount} Holdings</span>
+              <span style={{ color: '#FCD34D', fontWeight: 600 }}>Manage &rarr;</span>
             </div>
           </div>
         </div>
@@ -86,7 +106,7 @@ export const HomePage: React.FC = () => {
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/add-fd')}>
             <PlusCircle size={16} />
-            <span>Add New FD</span>
+            <span>+ Add FD</span>
           </button>
           <button
             className="btn btn-primary btn-sm"
@@ -94,7 +114,15 @@ export const HomePage: React.FC = () => {
             onClick={() => navigate('/add-post-office')}
           >
             <PlusCircle size={16} />
-            <span>Add Post Office Scheme</span>
+            <span>+ Add Post Office</span>
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ background: '#D97706', borderColor: '#B45309' }}
+            onClick={() => navigate('/add-bullion')}
+          >
+            <PlusCircle size={16} />
+            <span>+ Add Bullion</span>
           </button>
         </div>
       </div>
@@ -107,7 +135,7 @@ export const HomePage: React.FC = () => {
             <h2 className="home-section-title">Portfolio Distribution Across 6 Categories</h2>
           </div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Hover over segments or click FDs &amp; Post Office to inspect
+            Hover over segments or click FDs, Post Office, or Bullions to inspect
           </div>
         </div>
 
@@ -115,7 +143,7 @@ export const HomePage: React.FC = () => {
       </div>
 
       {/* Active Modules Context Strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
         <div style={{
           background: '#EFF6FF',
           border: '1px solid #BFDBFE',
@@ -133,13 +161,13 @@ export const HomePage: React.FC = () => {
             <div>
               <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Bank Fixed Deposits</strong>
               <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {fdCount} deposits tracking quarterly yields &amp; certificate receipts.
+                {fdCount} active bank deposits with maturity colors.
               </p>
             </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={() => navigate('/fds')}>
-            <span>Open FDs</span>
-            <ArrowRight size={15} />
+            <span>Open</span>
+            <ArrowRight size={14} />
           </button>
         </div>
 
@@ -158,9 +186,9 @@ export const HomePage: React.FC = () => {
               <Mail size={20} />
             </div>
             <div>
-              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Post Office Savings</strong>
+              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Post Office Schemes</strong>
               <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {poCount} government schemes (MIS, SCSS, POTD, RD, PPF, Sukanya).
+                {poCount} government schemes (MIS, SCSS, POTD, RD).
               </p>
             </div>
           </div>
@@ -169,8 +197,39 @@ export const HomePage: React.FC = () => {
             style={{ background: '#EA580C', borderColor: '#C2410C' }}
             onClick={() => navigate('/post-office')}
           >
-            <span>Open Post Office</span>
-            <ArrowRight size={15} />
+            <span>Open</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
+
+        <div style={{
+          background: '#FFFBEB',
+          border: '1px solid #FDE68A',
+          borderRadius: 'var(--radius-lg)',
+          padding: '20px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', boxShadow: 'var(--shadow-xs)' }}>
+              <Coins size={20} />
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Bullions &amp; Metals</strong>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                {bulCount} gold, silver, and precious physical holdings.
+              </p>
+            </div>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ background: '#D97706', borderColor: '#B45309' }}
+            onClick={() => navigate('/bullions')}
+          >
+            <span>Open</span>
+            <ArrowRight size={14} />
           </button>
         </div>
       </div>

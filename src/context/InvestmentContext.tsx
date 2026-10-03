@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { FamilyMember, FixedDeposit, PostOfficeInvestment, PortfolioSummary } from '../types';
+import type { FamilyMember, FixedDeposit, PostOfficeInvestment, BullionInvestment, PortfolioSummary } from '../types';
 import { DEFAULT_SEED_MEMBERS } from '../data/seedData';
+import { getEffectiveBullionValue } from '../utils/bullionCalculations';
 
 const STORAGE_KEYS = {
-  MEMBERS: 'familyvault_members_data_v2', // v2 to pick up post office structures
+  MEMBERS: 'familyvault_members_data_v3', // v3 to include bullions structures
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id',
   IS_AUTHENTICATED: 'familyvault_authenticated'
 };
@@ -28,6 +29,11 @@ interface InvestmentContextType {
   addOrUpdatePostOffice: (po: Partial<PostOfficeInvestment>) => PostOfficeInvestment;
   deletePostOffice: (id: string) => void;
   getPostOfficeById: (id: string) => PostOfficeInvestment | undefined;
+
+  // Bullions Investments
+  addOrUpdateBullion: (b: Partial<BullionInvestment>) => BullionInvestment;
+  deleteBullion: (id: string) => void;
+  getBullionById: (id: string) => BullionInvestment | undefined;
 
   // Calculations
   getPortfolioSummary: (member?: FamilyMember) => PortfolioSummary;
@@ -105,7 +111,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         cashInHand: 0
       },
       fds: [],
-      postOfficeInvestments: []
+      postOfficeInvestments: [],
+      bullionsInvestments: []
     };
 
     setMembers((prev) => [...prev, newMember]);
@@ -213,7 +220,6 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           pos.push(savedPo);
         }
 
-        // Sync otherAssets.postOffice total with actual sum of investments
         const newPostOfficeTotal = pos.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
         const updatedOtherAssets = {
           ...(member.otherAssets || { stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }),
@@ -249,6 +255,83 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return activeMember.postOfficeInvestments?.find((p) => p.id === id);
   };
 
+  // Bullions Investments
+  const addOrUpdateBullion = (bData: Partial<BullionInvestment>): BullionInvestment => {
+    let savedBul: BullionInvestment;
+
+    setMembers((prevMembers) => {
+      return prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+
+        const buls = [...(member.bullionsInvestments || [])];
+        if (bData.id) {
+          const index = buls.findIndex((b) => b.id === bData.id);
+          if (index !== -1) {
+            savedBul = { ...buls[index], ...bData } as BullionInvestment;
+            buls[index] = savedBul;
+          } else {
+            savedBul = bData as BullionInvestment;
+            buls.push(savedBul);
+          }
+        } else {
+          savedBul = {
+            id: `bul_${Date.now()}`,
+            type: bData.type || 'GOLD',
+            typeName: bData.typeName || 'Gold',
+            itemName: bData.itemName || 'Bullion Holding',
+            purchaseDate: bData.purchaseDate || undefined,
+            purchaseRate: bData.purchaseRate !== undefined ? Number(bData.purchaseRate) : undefined,
+            weightGrams: bData.weightGrams !== undefined ? Number(bData.weightGrams) : undefined,
+            weightDisplay: bData.weightDisplay || undefined,
+            investedValue: bData.investedValue !== undefined ? Number(bData.investedValue) : undefined,
+            photoUrl: bData.photoUrl || '',
+            notes: bData.notes || ''
+          };
+          buls.push(savedBul);
+        }
+
+        // Only include items with sufficient value in otherAssets.bullions
+        const newBullionsTotal = buls.reduce((sum, b) => {
+          return sum + getEffectiveBullionValue(b);
+        }, 0);
+
+        const updatedOtherAssets = {
+          ...(member.otherAssets || { postOffice: 0, stocksMf: 0, realEstate: 0, cashInHand: 0 }),
+          bullions: newBullionsTotal
+        };
+
+        return { ...member, bullionsInvestments: buls, otherAssets: updatedOtherAssets };
+      });
+    });
+
+    return savedBul!;
+  };
+
+  const deleteBullion = (id: string) => {
+    setMembers((prevMembers) =>
+      prevMembers.map((member) => {
+        if (member.id !== activeMemberId) return member;
+        const buls = (member.bullionsInvestments || []).filter((b) => b.id !== id);
+        const newBullionsTotal = buls.reduce((sum, b) => {
+          return sum + getEffectiveBullionValue(b);
+        }, 0);
+
+        return {
+          ...member,
+          bullionsInvestments: buls,
+          otherAssets: {
+            ...(member.otherAssets || { postOffice: 0, stocksMf: 0, realEstate: 0, cashInHand: 0 }),
+            bullions: newBullionsTotal
+          }
+        };
+      })
+    );
+  };
+
+  const getBullionById = (id: string): BullionInvestment | undefined => {
+    return activeMember.bullionsInvestments?.find((b) => b.id === id);
+  };
+
   // Portfolio Summary Calculation
   const getPortfolioSummary = (memberTarget?: FamilyMember): PortfolioSummary => {
     const target = memberTarget || activeMember;
@@ -257,6 +340,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         total: 0,
         fdTotal: 0,
         postOfficeTotal: 0,
+        bullionsTotal: 0,
         breakdown: { fds: 0, postOffice: 0, stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 }
       };
     }
@@ -268,24 +352,31 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const poCalculatedTotal = poList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const postOfficeTotal = poCalculatedTotal > 0 ? poCalculatedTotal : (target.otherAssets?.postOffice || 0);
 
-    const o = target.otherAssets || { stocksMf: 0, realEstate: 0, bullions: 0, cashInHand: 0 };
+    const bulList = target.bullionsInvestments || [];
+    // Only entries with sufficient value contribute to the total!
+    const bulCalculatedTotal = bulList.reduce((sum, b) => {
+      return sum + getEffectiveBullionValue(b);
+    }, 0);
+    const bullionsTotal = bulList.length > 0 ? bulCalculatedTotal : (target.otherAssets?.bullions || 0);
+
+    const o = target.otherAssets || { stocksMf: 0, realEstate: 0, cashInHand: 0 };
     const stocksMf = o.stocksMf || 0;
     const realEstate = o.realEstate || 0;
-    const bullions = o.bullions || 0;
     const cashInHand = o.cashInHand || 0;
 
-    const total = fdTotal + postOfficeTotal + stocksMf + realEstate + bullions + cashInHand;
+    const total = fdTotal + postOfficeTotal + bullionsTotal + stocksMf + realEstate + cashInHand;
 
     return {
       total,
       fdTotal,
       postOfficeTotal,
+      bullionsTotal,
       breakdown: {
         fds: fdTotal,
         postOffice: postOfficeTotal,
         stocksMf,
         realEstate,
-        bullions,
+        bullions: bullionsTotal,
         cashInHand
       }
     };
@@ -309,6 +400,9 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addOrUpdatePostOffice,
         deletePostOffice,
         getPostOfficeById,
+        addOrUpdateBullion,
+        deleteBullion,
+        getBullionById,
         getPortfolioSummary
       }}
     >

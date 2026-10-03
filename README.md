@@ -16,13 +16,35 @@ A modern, high-visibility desktop web application built with **React 19**, **Typ
 - Visual distribution across **6 Core Asset Categories**:
   - 🏦 **Fixed Deposits (FDs)** — *Active & Functional*
   - 📮 **Post Office Savings Schemes** — *Active & Functional*
+  - 🪙 **Bullions (Gold/Silver/Platinum)** — *Active & Functional*
   - 📈 **Stocks & Mutual Funds** — *(V2 Planned)*
   - 🏡 **Real Estate** — *(V2 Planned)*
-  - 🪙 **Bullions (Gold/Silver)** — *(V2 Planned)*
   - 💵 **Cash in Hand** — *(V2 Planned)*
-- Interactive center statistics on slice hover and instant 1-click drill-down into FDs or Post Office.
+- Interactive center statistics on slice hover and instant 1-click drill-down into FDs, Post Office, or Bullions.
 
-### 3. Post Office Savings & Investment Vault
+### 3. Bullions Vault (Gold, Silver, Platinum, Other)
+- **Overview & Distribution Chart**:
+  - Total Bullions Investment Value (sums only records with sufficient value information)
+  - Interactive SVG Donut Chart showing distribution of recorded bullion value by metal type
+  - Bullion count badges showing both verified holdings and records needing verification
+- **Incomplete Records & Verification Flow**:
+  - Allows saving physical bullion records even if purchase price, rate, or weight are unknown
+  - Records lacking critical value info are visibly marked with **"Needs verification soon"**
+  - Incomplete records are excluded from the portfolio total and pie chart until value details are provided
+  - Instant auto-inclusion into total value and pie chart once sufficient value data is entered
+- **Zero Maturity Colour Map**:
+  - Bullion investments have no maturity or expiration date; consistent, clean card design is maintained
+- **Add / Edit Bullion (`/add-bullion`)**:
+  - Type of bullion (Mandatory)
+  - Purchase Date, Rate per gram/unit, Weight/Quantity, Invested Value, Receipt Photo, Notes (Optional)
+  - Auto-calculation helper: Rate $\times$ Weight $\rightarrow$ Invested Value
+- **Sorting & Filtering**:
+  - Filter by bullion metal type (`Gold`, `Silver`, `Platinum`, `Other`)
+  - Filter by status (`All`, `Verified Value`, `Needs Verification Soon`)
+  - Sort by value, purchase date, rate, or weight
+  - Toggle between responsive **Card View** and compact **Table View**
+
+### 4. Post Office Savings & Investment Vault
 - **Multi-Scheme Support**:
   - **RD** (Recurring Deposit — monthly installment, 5-year quarterly compounding)
   - **MIS** (Monthly Income Scheme — guaranteed monthly pension-like payouts)
@@ -98,21 +120,34 @@ A consistent color spectrum indicates maturity urgency without compromising text
 │   ├── data/seedData.ts                 # Pre-loaded realistic family portfolios
 │   ├── utils/
 │   │   ├── calculations.ts              # Quarterly compounding interest math
-│   │   └── maturityColorMap.ts          # 5-level urgency color mapping
+│   │   ├── maturityColorMap.ts          # 5-level urgency color mapping
+│   │   ├── postOfficeCalculations.ts    # 9 Post office scheme formulas & metadata
+│   │   └── bullionCalculations.ts       # Metal types, sufficient value checks & rates
 │   ├── components/
 │   │   ├── Navbar.tsx                   # Sticky nav, switcher, demo reset
 │   │   ├── DonutChart.tsx               # SVG Donut chart & category tiles
 │   │   ├── FdCard.tsx                   # Color-coded deposit card
 │   │   ├── FdTable.tsx                  # Desktop data table view
+│   │   ├── PostOfficeCard.tsx           # Post office scheme card
+│   │   ├── PostOfficeDonutChart.tsx     # Post office scheme distribution
+│   │   ├── BullionCard.tsx              # Clean bullion card (needs verification badge)
+│   │   ├── BullionTable.tsx             # Bullion table view
+│   │   ├── BullionDonutChart.tsx        # Bullion type distribution donut
 │   │   ├── PhotoModal.tsx               # Certificate lightbox viewer
 │   │   └── AddMemberModal.tsx           # Add family member dialog
 │   ├── pages/
 │   │   ├── LoginPage.tsx                # Security PIN & quick demo entry
 │   │   ├── FamilySelectPage.tsx         # Family member selector grid
 │   │   ├── HomePage.tsx                 # Net worth & portfolio allocation
-│   │   ├── FdDashboardPage.tsx          # Summary, search, filter, sort
+│   │   ├── FdDashboardPage.tsx          # FD summary, search, filter, sort
 │   │   ├── FdDetailsPage.tsx            # Complete FD view, urgency banner
-│   │   └── AddFdPage.tsx                # Add/edit FD with live math preview
+│   │   ├── AddFdPage.tsx                # Add/edit FD with live math preview
+│   │   ├── PostOfficeDashboardPage.tsx  # Post office vault overview & list
+│   │   ├── PostOfficeDetailsPage.tsx    # Scheme inspector & passbook preview
+│   │   ├── AddPostOfficePage.tsx        # Add/edit Post Office scheme with calculator
+│   │   ├── BullionsDashboardPage.tsx    # Bullions overview, chart, search & filters
+│   │   ├── BullionDetailsPage.tsx       # Bullion item details, verification & receipt
+│   │   └── AddBullionPage.tsx           # Add/edit bullion (type mandatory, rest optional)
 │   └── styles/
 │       ├── variables.css                # Color tokens & theme variables
 │       ├── global.css                   # Base reset, typography, buttons

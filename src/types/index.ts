@@ -10,44 +10,60 @@ export interface FixedDeposit {
 }
 
 export type PostOfficeSchemeType =
-  | 'RD' // Recurring Deposit
-  | 'MIS' // Monthly Income Scheme
-  | 'POTD' // Post Office Time Deposit (FD)
-  | 'SCSS' // Senior Citizen Savings Scheme
-  | 'PPF' // Public Provident Fund
-  | 'NSC' // National Savings Certificate
-  | 'KVP' // Kisan Vikas Patra
-  | 'SUKANYA' // Sukanya Samriddhi Account
-  | 'MAHILA_SAMMAN'; // Mahila Samman Savings Certificate
+  | 'RD'
+  | 'MIS'
+  | 'POTD'
+  | 'SCSS'
+  | 'PPF'
+  | 'NSC'
+  | 'KVP'
+  | 'SUKANYA'
+  | 'MAHILA_SAMMAN';
 
 export interface PostOfficeInvestment {
   id: string;
   schemeType: PostOfficeSchemeType;
-  schemeName: string; // Display title, e.g. "Monthly Income Scheme (MIS)"
+  schemeName: string;
   accountNumber: string;
-  amount: number; // Principal / Deposit amount / Current balance
-  openingDate: string; // YYYY-MM-DD
-  maturityDate: string; // YYYY-MM-DD
-  interestRate?: number; // % p.a.
-  branch?: string; // Post Office branch
-  nominee?: string; // Nominee name & relation
-  photoUrl?: string; // Document / Passbook photo
+  amount: number;
+  openingDate: string;
+  maturityDate: string;
+  interestRate?: number;
+  branch?: string;
+  nominee?: string;
+  photoUrl?: string;
 
   // Scheme-Specific Fields
-  monthlyInstallment?: number; // for RD
-  monthlyPayout?: number; // for MIS
-  quarterlyPayout?: number; // for SCSS
-  tenureYears?: number; // for Time Deposit (1, 2, 3, 5)
-  financialYearContribution?: number; // for PPF
-  currentBalance?: number; // for PPF / Sukanya
-  girlChildName?: string; // for Sukanya
-  girlChildDob?: string; // for Sukanya
-  guardianName?: string; // for Sukanya
-  maturityAmount?: number; // calculated / estimated payout
+  monthlyInstallment?: number;
+  monthlyPayout?: number;
+  quarterlyPayout?: number;
+  tenureYears?: number;
+  financialYearContribution?: number;
+  currentBalance?: number;
+  girlChildName?: string;
+  girlChildDob?: string;
+  guardianName?: string;
+  maturityAmount?: number;
+}
+
+export type BullionType = 'GOLD' | 'SILVER' | 'PLATINUM' | 'OTHER';
+
+export interface BullionInvestment {
+  id: string;
+  type: BullionType;
+  typeName: string; // e.g. "Gold (24K)", "Silver Bar", "Platinum"
+  itemName: string; // User's label, e.g. "Tanishq 24K 50g Gold Bar"
+  purchaseDate?: string; // YYYY-MM-DD (Optional)
+  purchaseRate?: number; // Rate per gram / unit (Optional)
+  weightGrams?: number; // Weight in grams (Optional)
+  weightDisplay?: string; // e.g. "50 grams", "2 kg", "1 tola" (Optional)
+  investedValue?: number; // Total purchase / recorded value in ₹ (Optional)
+  photoUrl?: string; // Photo of invoice / hallmark / certificate (Optional)
+  notes?: string; // Additional remarks or purity details (Optional)
 }
 
 export interface OtherAssets {
-  postOffice: number; // kept for legacy / external
+  postOffice: number;
   stocksMf: number;
   realEstate: number;
   bullions: number;
@@ -62,6 +78,7 @@ export interface FamilyMember {
   otherAssets: OtherAssets;
   fds: FixedDeposit[];
   postOfficeInvestments?: PostOfficeInvestment[];
+  bullionsInvestments?: BullionInvestment[];
 }
 
 export interface FDCalculation {
@@ -100,6 +117,7 @@ export interface PortfolioSummary {
   total: number;
   fdTotal: number;
   postOfficeTotal: number;
+  bullionsTotal: number;
   breakdown: PortfolioBreakdown;
 }
 

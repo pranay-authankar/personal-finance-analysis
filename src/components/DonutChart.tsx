@@ -16,9 +16,9 @@ interface CategoryConfig {
 const CATEGORIES: CategoryConfig[] = [
   { id: 'fds', name: 'Fixed Deposits (FDs)', icon: '🏦', color: '#2563EB', isFunctional: true, route: '/fds' },
   { id: 'postOffice', name: 'Post Office', icon: '📮', color: '#EA580C', isFunctional: true, route: '/post-office' },
+  { id: 'bullions', name: 'Bullions (Gold/Silver)', icon: '🪙', color: '#D97706', isFunctional: true, route: '/bullions' },
   { id: 'stocksMf', name: 'Stocks & MFs', icon: '📈', color: '#059669', isFunctional: false },
   { id: 'realEstate', name: 'Real Estate', icon: '🏡', color: '#7C3AED', isFunctional: false },
-  { id: 'bullions', name: 'Bullions (Gold/Silver)', icon: '🪙', color: '#D97706', isFunctional: false },
   { id: 'cashInHand', name: 'Cash in Hand', icon: '💵', color: '#0D9488', isFunctional: false }
 ];
 

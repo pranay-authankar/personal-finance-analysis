@@ -11,6 +11,9 @@ import { AddFdPage } from './pages/AddFdPage';
 import { PostOfficeDashboardPage } from './pages/PostOfficeDashboardPage';
 import { PostOfficeDetailsPage } from './pages/PostOfficeDetailsPage';
 import { AddPostOfficePage } from './pages/AddPostOfficePage';
+import { BullionsDashboardPage } from './pages/BullionsDashboardPage';
+import { BullionDetailsPage } from './pages/BullionDetailsPage';
+import { AddBullionPage } from './pages/AddBullionPage';
 
 import './styles/global.css';
 import './styles/components.css';
@@ -119,6 +122,34 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <AddPostOfficePage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Bullions Routes */}
+        <Route
+          path="/bullions"
+          element={
+            <ProtectedRoute>
+              <BullionsDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/bullions/:id"
+          element={
+            <ProtectedRoute>
+              <BullionDetailsPage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/add-bullion"
+          element={
+            <ProtectedRoute>
+              <AddBullionPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />
