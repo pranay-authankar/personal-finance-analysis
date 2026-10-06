@@ -75,43 +75,47 @@ h1, h2, h3, h4, .font-display {
 }
 
 .btn-primary {
-  background: var(--brand-primary);
+  background: var(--color-navy);
   color: var(--text-inverse);
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  border-color: var(--color-navy);
+  box-shadow: 0 1px 3px rgba(15, 30, 54, 0.15);
 }
 
 .btn-primary:hover {
-  background: var(--brand-primary-hover);
-  box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+  background: var(--color-navy-hover);
+  border-color: var(--color-navy-hover);
+  box-shadow: 0 3px 8px rgba(15, 30, 54, 0.2);
   transform: translateY(-1px);
 }
 
 .btn-secondary {
   background: var(--bg-surface);
-  color: var(--text-main);
-  border-color: var(--border-medium);
+  color: var(--color-charcoal-dark);
+  border-color: var(--border-card);
   box-shadow: var(--shadow-xs);
 }
 
 .btn-secondary:hover {
   background: var(--bg-surface-subtle);
-  border-color: var(--text-secondary);
+  border-color: var(--border-hover);
+  color: var(--color-navy);
 }
 
 .btn-outline {
   background: transparent;
-  color: var(--brand-primary);
-  border-color: var(--brand-primary);
+  color: var(--color-navy);
+  border-color: var(--border-card);
 }
 
 .btn-outline:hover {
-  background: var(--brand-primary-bg);
+  background: var(--color-navy-subtle);
+  border-color: var(--color-navy-border);
 }
 
 .btn-danger {
   background: var(--color-rose-bg);
   color: var(--color-rose);
-  border-color: #FECACA;
+  border-color: var(--color-rose-border);
 }
 
 .btn-danger:hover {

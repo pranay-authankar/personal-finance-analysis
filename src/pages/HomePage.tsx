@@ -1,298 +1,1155 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import { formatCurrency } from '../utils/calculations';
+import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
+import { getDeadlineClassification } from '../utils/deadlinesColorMap';
+import { getEffectiveBullionValue } from '../utils/bullionCalculations';
 import { DonutChart } from '../components/DonutChart';
-import { Landmark, Mail, Coins, Wallet, ArrowRight, PlusCircle, Users, ArrowUpRight } from 'lucide-react';
+import type { DeadlineClassification } from '../types';
+import {
+  Users,
+  Plus,
+  Layers,
+  Clock,
+  ArrowDownLeft,
+  ArrowUpRight,
+  ChevronRight,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Landmark,
+  Coins,
+  Building,
+  Mail,
+  Wallet
+} from 'lucide-react';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
-  const { activeMember, getPortfolioSummary } = useInvestments();
+  const { activeMember, getPortfolioSummary, calculatePropertyFinances } = useInvestments();
+  const [showAddMenu, setShowAddMenu] = useState(false);
 
   if (!activeMember) return null;
 
   const summary = getPortfolioSummary();
-  const fdCount = activeMember.fds?.length || 0;
-  const poCount = activeMember.postOfficeInvestments?.length || 0;
-  const bulCount = activeMember.bullionsInvestments?.length || 0;
-  const realizedCount = activeMember.realizedFunds?.length || 0;
+
+  // 1. Active Assets breakdown
+  const activeFds = useMemo(() => (activeMember.fds || []).filter((f) => !f.actualEndDate), [activeMember]);
+  const activePos = useMemo(() => (activeMember.postOfficeInvestments || []).filter((p) => p.status === 'active'), [activeMember]);
+  const activeBul = useMemo(() => (activeMember.bullionsInvestments || []).filter((b) => b.status === 'active'), [activeMember]);
+  const activeProps = useMemo(
+    () => (activeMember.properties || []).filter((p) => (p.property_status || 'ACTIVE') === 'ACTIVE'),
+    [activeMember]
+  );
+  const totalActiveCount = activeFds.length + activePos.length + activeBul.length + activeProps.length;
+
+  // 2. Receivables Calculation
+  const { totalReceivables, receivablesCount } = useMemo(() => {
+    let total = 0;
+    let count = 0;
+
+    (activeMember.properties || []).forEach((p) => {
+      const fin = calculatePropertyFinances(p.p_id);
+      if (fin.saleReceivableLeft > 0) {
+        total += fin.saleReceivableLeft;
+        count++;
+      }
+    });
+
+    (activeMember.rents || []).forEach((r) => {
+      if (r.next_rent_due && Number(r.rent_amount) > 0) {
+        total += Number(r.rent_amount);
+        count++;
+      }
+    });
+
+    return { totalReceivables: total, receivablesCount: count };
+  }, [activeMember, calculatePropertyFinances]);
+
+  // 3. Upcoming Events (sorted by nearest date)
+  const upcomingList = useMemo(() => {
+    const events: Array<{
+      id: string;
+      title: string;
+      category: string;
+      date: string;
+      amount: number;
+      route: string;
+      badge: DeadlineClassification;
+    }> = [];
+
+    // FDs
+    activeFds.forEach((f) => {
+      if (f.maturityDate) {
+        const badge = getDeadlineClassification(f.maturityDate);
+        if (badge) {
+          const calc = calculateFDValues(f.principal, f.interestRate, f.startDate, f.maturityDate);
+          events.push({
+            id: `fd_${f.id}`,
+            title: `${f.bankName} FD`,
+            category: 'Fixed Deposit',
+            date: f.maturityDate,
+            amount: calc.maturityAmount || f.principal,
+            route: `/fds/${f.id}`,
+            badge
+          });
+        }
+      }
+    });
+
+    // Post Office
+    activePos.forEach((p) => {
+      if (p.maturityDate) {
+        const badge = getDeadlineClassification(p.maturityDate);
+        if (badge) {
+          events.push({
+            id: `po_mat_${p.id}`,
+            title: `${p.schemeName}`,
+            category: 'Post Office',
+            date: p.maturityDate,
+            amount: p.amount,
+            route: `/post-office/${p.id}`,
+            badge
+          });
+        }
+      }
+      if (p.nextDepositDate && p.monthlyDeposit) {
+        const badge = getDeadlineClassification(p.nextDepositDate);
+        if (badge) {
+          events.push({
+            id: `po_dep_${p.id}`,
+            title: `${p.schemeName} RD Deposit`,
+            category: 'Post Office',
+            date: p.nextDepositDate,
+            amount: p.monthlyDeposit,
+            route: `/post-office/${p.id}`,
+            badge
+          });
+        }
+      }
+    });
+
+    // Bullions
+    activeBul.forEach((b) => {
+      if (b.paymentDueDate && (b.remainingPayment || 0) > 0) {
+        const badge = getDeadlineClassification(b.paymentDueDate);
+        if (badge) {
+          events.push({
+            id: `bul_${b.id}`,
+            title: `${b.itemName} Balance Due`,
+            category: 'Bullions',
+            date: b.paymentDueDate,
+            amount: b.remainingPayment || 0,
+            route: `/bullions/${b.id}`,
+            badge
+          });
+        }
+      }
+    });
+
+    // Properties
+    (activeMember.properties || []).forEach((p) => {
+      const fin = calculatePropertyFinances(p.p_id);
+      if (p.payment_deadline && fin.paymentLeft > 0) {
+        const badge = getDeadlineClassification(p.payment_deadline);
+        if (badge) {
+          events.push({
+            id: `prop_pay_${p.p_id}`,
+            title: `${p.name} Balance Due`,
+            category: 'Real Estate',
+            date: p.payment_deadline,
+            amount: fin.paymentLeft,
+            route: `/real-estate/${p.p_id}`,
+            badge
+          });
+        }
+      }
+      if (fin.saleReceivableLeft > 0 && fin.nextDueDate) {
+        const badge = getDeadlineClassification(fin.nextDueDate);
+        if (badge) {
+          events.push({
+            id: `prop_rec_${p.p_id}`,
+            title: `${p.name} Receivable Due`,
+            category: 'Real Estate',
+            date: fin.nextDueDate,
+            amount: fin.saleReceivableLeft,
+            route: `/real-estate/${p.p_id}`,
+            badge
+          });
+        }
+      }
+    });
+
+    // Rents
+    (activeMember.rents || []).forEach((r) => {
+      if (r.next_rent_due && Number(r.rent_amount) > 0) {
+        const badge = getDeadlineClassification(r.next_rent_due);
+        if (badge) {
+          events.push({
+            id: `rent_${r.r_id}`,
+            title: `Rent: ${r.tenant_name}`,
+            category: 'Real Estate',
+            date: r.next_rent_due,
+            amount: Number(r.rent_amount),
+            route: `/real-estate/${r.p_id}`,
+            badge
+          });
+        }
+      }
+    });
+
+    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return events;
+  }, [activeFds, activePos, activeBul, activeMember, calculatePropertyFinances]);
+
+  // 4. Recent Activity (Meaningful transactions only)
+  const recentActivityList = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      category: string;
+      date: string;
+      amount: number;
+      isIncome: boolean;
+      route?: string;
+    }> = [];
+
+    // Realized Funds
+    (activeMember.realizedFunds || []).forEach((rf) => {
+      if (rf.dateReceived) {
+        list.push({
+          id: `rf_${rf.id}`,
+          title: `${rf.sourceName} (${rf.reason})`,
+          category: rf.sourceCategory || 'Realized',
+          date: rf.dateReceived,
+          amount: rf.amount,
+          isIncome: true,
+          route: '/realized-funds'
+        });
+      }
+    });
+
+    // FDs
+    (activeMember.fds || []).forEach((f) => {
+      if (f.startDate) {
+        list.push({
+          id: `fd_start_${f.id}`,
+          title: `${f.bankName} FD Booked`,
+          category: 'Fixed Deposit',
+          date: f.startDate,
+          amount: f.principal,
+          isIncome: false,
+          route: `/fds/${f.id}`
+        });
+      }
+    });
+
+    // Bullions
+    (activeMember.bullionsInvestments || []).forEach((b) => {
+      if (b.purchaseDate && b.investedValue) {
+        list.push({
+          id: `bul_buy_${b.id}`,
+          title: `${b.itemName} Acquired`,
+          category: 'Bullions',
+          date: b.purchaseDate,
+          amount: getEffectiveBullionValue(b),
+          isIncome: false,
+          route: `/bullions/${b.id}`
+        });
+      }
+    });
+
+    // Properties
+    (activeMember.properties || []).forEach((p) => {
+      if (p.purchase_date && p.purchase_price) {
+        list.push({
+          id: `prop_buy_${p.p_id}`,
+          title: `${p.name} Acquired`,
+          category: 'Real Estate',
+          date: p.purchase_date,
+          amount: Number(p.purchase_price),
+          isIncome: false,
+          route: `/real-estate/${p.p_id}`
+        });
+      }
+    });
+
+    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return list.slice(0, 5);
+  }, [activeMember]);
+
+  const nextUpcomingEvent = upcomingList[0];
 
   return (
-    <div className="main-content fade-in">
-      {/* Hero Overview Card */}
-      <div className="home-hero-card">
-        <div className="home-hero-left">
-          <div className="home-hero-avatar">{activeMember.avatar || '👨'}</div>
+    <div className="main-content fade-in" style={{ maxWidth: '1240px', margin: '0 auto', paddingBottom: '48px' }}>
+      {/* Zero Data Banner (only if no members) */}
+      {!activeMember.id && (
+        <div
+          style={{
+            padding: '20px 24px',
+            marginBottom: '24px',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
           <div>
-            <div className="home-hero-kicker">{activeMember.role}'s Portfolio</div>
-            <h1 className="home-hero-title">{activeMember.name}</h1>
-            <div className="home-total-investment-display">
-              <span className="home-currency-symbol">₹</span>
-              <span className="home-total-number">{formatCurrency(summary.total)}</span>
-              <span style={{ fontSize: '13px', color: '#93C5FD', marginLeft: '6px' }}>Total Tracked Wealth</span>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-navy)', margin: '0 0 2px 0' }}>
+              Welcome to FamilyVault
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)', margin: 0 }}>
+              Add your first family member to begin tracking your portfolio.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => navigate('/family-select')}
+          >
+            <Users size={14} />
+            <span>Add Member</span>
+          </button>
+        </div>
+      )}
+
+      {/* Top Header Bar: Active Member & Quick Actions */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '28px',
+          flexWrap: 'wrap',
+          gap: '16px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '10px',
+              background: 'var(--color-navy)',
+              color: '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '22px',
+              fontWeight: 700,
+              boxShadow: '0 2px 8px rgba(15, 30, 54, 0.2)'
+            }}
+          >
+            {activeMember.avatar || '👤'}
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-navy)', margin: 0, letterSpacing: '-0.02em' }}>
+                {activeMember.name}
+              </h1>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.06em',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  background: 'var(--bg-surface-subtle)',
+                  color: 'var(--color-charcoal)',
+                  border: '1px solid var(--border-card)'
+                }}
+              >
+                {activeMember.role || 'Family Member'}
+              </span>
             </div>
-            <div style={{ fontSize: '12px', color: '#BFDBFE', marginTop: '6px' }}>
-              Active Investments: <strong>₹ {formatCurrency(summary.activeInvestmentsTotal)}</strong> + Realized Funds: <strong>₹ {formatCurrency(summary.realizedFundsTotal)}</strong>
-            </div>
+            <p style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0 0' }}>
+              Executive Financial Overview
+            </p>
           </div>
         </div>
 
-        {/* Action cards linking to active sections */}
-        <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
-          {/* FD Action Card */}
-          <div
-            className="home-hero-right-action"
-            onClick={() => navigate('/fds')}
-            role="button"
-            tabIndex={0}
-            style={{ minWidth: '190px', padding: '16px 20px' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/family-select')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 600,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-card)',
+              color: 'var(--color-charcoal)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-hover)';
+              e.currentTarget.style.color = 'var(--color-navy)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-card)';
+              e.currentTarget.style.color = 'var(--color-charcoal)';
+            }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="hero-fd-label">Fixed Deposits</span>
-              <ArrowUpRight size={15} color="#6EE7B7" />
-            </div>
-            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.fdTotal)}</div>
-            <div className="hero-fd-meta">
-              <span>{fdCount} Active</span>
-              <span style={{ color: '#6EE7B7', fontWeight: 600 }}>Manage &rarr;</span>
-            </div>
-          </div>
-
-          {/* Post Office Action Card */}
-          <div
-            className="home-hero-right-action"
-            onClick={() => navigate('/post-office')}
-            role="button"
-            tabIndex={0}
-            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(251, 146, 60, 0.4)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="hero-fd-label" style={{ color: '#FDBA74' }}>Post Office</span>
-              <ArrowUpRight size={15} color="#FDBA74" />
-            </div>
-            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.postOfficeTotal)}</div>
-            <div className="hero-fd-meta">
-              <span>{poCount} Active</span>
-              <span style={{ color: '#FDBA74', fontWeight: 600 }}>Manage &rarr;</span>
-            </div>
-          </div>
-
-          {/* Bullions Action Card */}
-          <div
-            className="home-hero-right-action"
-            onClick={() => navigate('/bullions')}
-            role="button"
-            tabIndex={0}
-            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(252, 211, 77, 0.4)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="hero-fd-label" style={{ color: '#FCD34D' }}>Bullions</span>
-              <ArrowUpRight size={15} color="#FCD34D" />
-            </div>
-            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.bullionsTotal)}</div>
-            <div className="hero-fd-meta">
-              <span>{bulCount} Holdings</span>
-              <span style={{ color: '#FCD34D', fontWeight: 600 }}>Manage &rarr;</span>
-            </div>
-          </div>
-
-          {/* Realized Funds Action Card */}
-          <div
-            className="home-hero-right-action"
-            onClick={() => navigate('/realized-funds')}
-            role="button"
-            tabIndex={0}
-            style={{ minWidth: '190px', padding: '16px 20px', borderColor: 'rgba(20, 184, 166, 0.4)' }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="hero-fd-label" style={{ color: '#5EEAD4' }}>Realized Funds</span>
-              <ArrowUpRight size={15} color="#5EEAD4" />
-            </div>
-            <div className="hero-fd-amount" style={{ fontSize: '22px' }}>₹ {formatCurrency(summary.realizedFundsTotal)}</div>
-            <div className="hero-fd-meta">
-              <span>{realizedCount} Entries</span>
-              <span style={{ color: '#5EEAD4', fontWeight: 600 }}>Manage &rarr;</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Action Navigation Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate('/family-select')}>
-            <Users size={16} />
+            <Users size={14} />
             <span>Switch Member</span>
           </button>
-        </div>
 
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/add-fd')}>
-            <PlusCircle size={16} />
-            <span>+ Add FD</span>
-          </button>
           <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#EA580C', borderColor: '#C2410C' }}
-            onClick={() => navigate('/add-post-office')}
+            type="button"
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 700,
+              background: 'var(--color-navy)',
+              border: '1px solid var(--color-navy)',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              boxShadow: '0 1px 3px rgba(15, 30, 54, 0.15)',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-navy-hover)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-navy)')}
           >
-            <PlusCircle size={16} />
-            <span>+ Add Post Office</span>
+            <Plus size={15} />
+            <span>Add Asset</span>
           </button>
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#D97706', borderColor: '#B45309' }}
-            onClick={() => navigate('/add-bullion')}
-          >
-            <PlusCircle size={16} />
-            <span>+ Add Bullion</span>
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#0D9488', borderColor: '#0F766E' }}
-            onClick={() => navigate('/add-realized-fund')}
-          >
-            <PlusCircle size={16} />
-            <span>+ Add Realized Fund</span>
-          </button>
+
+          {/* Clean Add Asset Dropdown */}
+          {showAddMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                right: 0,
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-card)',
+                borderRadius: '10px',
+                boxShadow: 'var(--shadow-lg)',
+                padding: '6px',
+                minWidth: '200px',
+                zIndex: 50,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '2px'
+              }}
+            >
+              {[
+                { label: 'Fixed Deposit (FD)', route: '/add-fd', icon: Landmark, color: 'var(--color-charcoal)' },
+                { label: 'Bullions / Metals', route: '/add-bullion', icon: Coins, color: 'var(--color-gold)' },
+                { label: 'Real Estate Property', route: '/add-property', icon: Building, color: 'var(--color-navy)' },
+                { label: 'Post Office Scheme', route: '/add-post-office', icon: Mail, color: '#A16207' },
+                { label: 'Realized Fund', route: '/add-realized-fund', icon: Wallet, color: '#0F766E' }
+              ].map((item) => (
+                <button
+                  key={item.route}
+                  type="button"
+                  onClick={() => {
+                    setShowAddMenu(false);
+                    navigate(item.route);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--color-charcoal-dark)',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    width: '100%',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-surface-soft)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <item.icon size={15} style={{ color: item.color }} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Donut Chart & Category Breakdown Section */}
-      <div className="card-panel home-chart-card">
-        <div className="home-section-header">
+      {/* PRIMARY VISUAL ROW: Total Portfolio Value & Portfolio Distribution Donut */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(320px, 420px) 1fr',
+          gap: '24px',
+          marginBottom: '24px'
+        }}
+        className="dashboard-primary-visual-grid"
+      >
+        {/* 1. Large Total Portfolio Value Card */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '14px',
+            padding: '30px 28px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
           <div>
-            <span className="kicker">Asset Allocation</span>
-            <h2 className="home-section-title">Portfolio Distribution Across 6 Categories</h2>
+            <div
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--color-charcoal-light)',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: 'var(--color-gold)',
+                  display: 'inline-block'
+                }}
+              />
+              <span>Total Portfolio Value</span>
+            </div>
+
+            <div
+              style={{
+                fontSize: '44px',
+                fontWeight: 800,
+                color: 'var(--color-navy)',
+                letterSpacing: '-0.03em',
+                lineHeight: 1.1,
+                fontFamily: 'var(--font-family-display)'
+              }}
+            >
+              <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
+              {formatCurrency(summary.total)}
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '12px',
+                marginTop: '26px',
+                padding: '14px 16px',
+                background: 'var(--bg-surface-soft)',
+                border: '1px solid var(--border-light)',
+                borderRadius: '10px'
+              }}
+            >
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-charcoal-muted)', display: 'block' }}>
+                  Active Holdings
+                </span>
+                <span
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: 'var(--color-navy)',
+                    marginTop: '2px',
+                    display: 'block'
+                  }}
+                >
+                  ₹ {formatCurrency(summary.activeInvestmentsTotal)}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-charcoal-muted)', display: 'block' }}>
+                  Realized Capital
+                </span>
+                <span
+                  style={{
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: 'var(--color-navy)',
+                    marginTop: '2px',
+                    display: 'block'
+                  }}
+                >
+                  ₹ {formatCurrency(summary.realizedFundsTotal)}
+                </span>
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Hover over segments or click FDs, Post Office, or Bullions to inspect
+
+          {/* Quick Direct Asset Links */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap',
+              marginTop: '26px',
+              paddingTop: '16px',
+              borderTop: '1px solid var(--border-light)'
+            }}
+          >
+            {[
+              { label: 'Real Estate', path: '/real-estate' },
+              { label: 'Fixed Deposits', path: '/fds' },
+              { label: 'Bullions', path: '/bullions' },
+              { label: 'Post Office', path: '/post-office' },
+              { label: 'Realized Funds', path: '/realized-funds' }
+            ].map((btn) => (
+              <button
+                key={btn.path}
+                type="button"
+                onClick={() => navigate(btn.path)}
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: 'var(--color-charcoal)',
+                  background: 'var(--bg-surface-soft)',
+                  border: '1px solid var(--border-card)',
+                  borderRadius: '6px',
+                  padding: '4px 9px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-navy)';
+                  e.currentTarget.style.borderColor = 'var(--border-hover)';
+                  e.currentTarget.style.background = 'var(--bg-surface)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-charcoal)';
+                  e.currentTarget.style.borderColor = 'var(--border-card)';
+                  e.currentTarget.style.background = 'var(--bg-surface-soft)';
+                }}
+              >
+                {btn.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <DonutChart portfolio={summary} />
+        {/* 2. Large Portfolio Distribution Donut Chart Card */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '14px',
+            padding: '30px 28px',
+            boxShadow: 'var(--shadow-sm)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--color-charcoal-light)'
+              }}
+            >
+              Asset Allocation Distribution
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', fontWeight: 600 }}>
+              Hover segment to inspect
+            </span>
+          </div>
+
+          <DonutChart portfolio={summary} />
+        </div>
       </div>
 
-      {/* Active Modules Context Strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-        <div style={{
-          background: '#EFF6FF',
-          border: '1px solid #BFDBFE',
-          borderRadius: 'var(--radius-lg)',
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-primary)', boxShadow: 'var(--shadow-xs)' }}>
-              <Landmark size={20} />
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Bank Fixed Deposits</strong>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {fdCount} active bank deposits with maturity colors.
-              </p>
+      {/* SUMMARY METRIC CARDS (Exactly 3 Useful Summary Cards) */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '20px',
+          marginBottom: '28px'
+        }}
+        className="dashboard-summary-cards-grid"
+      >
+        {/* Card 1: Active Assets */}
+        <div
+          onClick={() => navigate('/fds')}
+          role="button"
+          tabIndex={0}
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '12px',
+            padding: '22px 24px',
+            boxShadow: 'var(--shadow-sm)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-hover)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-card)';
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-charcoal-light)' }}>
+              Active Assets
+            </span>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'var(--bg-surface-subtle)',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--color-navy)'
+              }}
+            >
+              <Layers size={16} />
             </div>
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => navigate('/fds')}>
-            <span>Open</span>
-            <ArrowRight size={14} />
-          </button>
+
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-navy)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            {totalActiveCount}
+            <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-charcoal-muted)', marginLeft: '6px' }}>
+              Holdings
+            </span>
+          </div>
+
+          <div style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', marginTop: '6px', fontWeight: 500 }}>
+            {activeFds.length} FDs · {activePos.length} Post Office · {activeBul.length} Bullions · {activeProps.length} Real Estate
+          </div>
         </div>
 
-        <div style={{
-          background: '#FFF7ED',
-          border: '1px solid #FED7AA',
-          borderRadius: 'var(--radius-lg)',
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C', boxShadow: 'var(--shadow-xs)' }}>
-              <Mail size={20} />
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Post Office Schemes</strong>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {poCount} government schemes (MIS, SCSS, POTD, RD).
-              </p>
+        {/* Card 2: Upcoming Due / Maturity */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '12px',
+            padding: '22px 24px',
+            boxShadow: 'var(--shadow-sm)',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-charcoal-light)' }}>
+              Upcoming Due / Maturity
+            </span>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: upcomingList.length > 0 ? 'var(--color-gold-bg)' : 'var(--bg-surface-subtle)',
+                border: upcomingList.length > 0 ? '1px solid var(--color-gold-border)' : '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: upcomingList.length > 0 ? 'var(--color-gold-dark)' : 'var(--color-charcoal-muted)'
+              }}
+            >
+              <Clock size={16} />
             </div>
           </div>
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#EA580C', borderColor: '#C2410C' }}
-            onClick={() => navigate('/post-office')}
-          >
-            <span>Open</span>
-            <ArrowRight size={14} />
-          </button>
+
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-navy)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            {upcomingList.length}
+            <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-charcoal-muted)', marginLeft: '6px' }}>
+              Pending
+            </span>
+          </div>
+
+          <div style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', marginTop: '6px', fontWeight: 500 }}>
+            {nextUpcomingEvent ? (
+              <span>
+                Next event in <strong style={{ color: 'var(--color-navy)' }}>{nextUpcomingEvent.badge.daysLeft} days</strong> ({formatDate(nextUpcomingEvent.date)})
+              </span>
+            ) : (
+              <span>All payment dues &amp; maturities clear</span>
+            )}
+          </div>
         </div>
 
-        <div style={{
-          background: '#FFFBEB',
-          border: '1px solid #FDE68A',
-          borderRadius: 'var(--radius-lg)',
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D97706', boxShadow: 'var(--shadow-xs)' }}>
-              <Coins size={20} />
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Bullions &amp; Metals</strong>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {bulCount} gold, silver, and precious physical holdings.
-              </p>
+        {/* Card 3: Receivable Amount */}
+        <div
+          onClick={() => navigate('/real-estate')}
+          role="button"
+          tabIndex={0}
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '12px',
+            padding: '22px 24px',
+            boxShadow: 'var(--shadow-sm)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-hover)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-card)';
+            e.currentTarget.style.transform = 'translateY(0)';
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-charcoal-light)' }}>
+              Receivable Amount
+            </span>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: totalReceivables > 0 ? 'var(--color-emerald-bg)' : 'var(--bg-surface-subtle)',
+                border: totalReceivables > 0 ? '1px solid var(--color-emerald-border)' : '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: totalReceivables > 0 ? 'var(--color-emerald)' : 'var(--color-charcoal-muted)'
+              }}
+            >
+              <ArrowDownLeft size={16} />
             </div>
           </div>
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#D97706', borderColor: '#B45309' }}
-            onClick={() => navigate('/bullions')}
+
+          <div style={{ fontSize: '28px', fontWeight: 800, color: 'var(--color-navy)', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+            <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
+            {formatCurrency(totalReceivables)}
+          </div>
+
+          <div style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', marginTop: '6px', fontWeight: 500 }}>
+            {receivablesCount > 0
+              ? `${receivablesCount} pending collection from sales & rent`
+              : 'Zero uncollected receivables'}
+          </div>
+        </div>
+      </div>
+
+      {/* TWO COLUMN DETAIL SECTION: Upcoming Events & Recent Activity */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr',
+          gap: '24px'
+        }}
+        className="dashboard-two-column-grid"
+      >
+        {/* 4. Clean Upcoming Section */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '14px',
+            padding: '24px',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid var(--border-light)'
+            }}
           >
-            <span>Open</span>
-            <ArrowRight size={14} />
-          </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={16} color="var(--color-navy)" />
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-navy)', margin: 0 }}>
+                Important Upcoming Events
+              </h2>
+            </div>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                background: 'var(--bg-surface-subtle)',
+                color: 'var(--color-charcoal)',
+                border: '1px solid var(--border-light)'
+              }}
+            >
+              {upcomingList.length} Scheduled
+            </span>
+          </div>
+
+          {upcomingList.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {upcomingList.slice(0, 5).map((ev) => (
+                <div
+                  key={ev.id}
+                  onClick={() => navigate(ev.route)}
+                  role="button"
+                  tabIndex={0}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--bg-surface-soft)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-surface)';
+                    e.currentTarget.style.borderColor = 'var(--border-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'var(--bg-surface-soft)';
+                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                    <span
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        background: ev.badge.bgTint,
+                        border: `1px solid ${ev.badge.borderTint}`,
+                        color: ev.badge.textDark,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {ev.badge.relativeText}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: 'var(--color-navy)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {ev.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', marginTop: '1px' }}>
+                        {ev.category} · {formatDate(ev.date)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: '12px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-navy)' }}>
+                      ₹ {formatCurrency(ev.amount)}
+                    </span>
+                    <ChevronRight size={14} color="var(--color-charcoal-muted)" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '36px 20px',
+                textAlign: 'center',
+                color: 'var(--color-charcoal-muted)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <CheckCircle2 size={28} color="var(--color-emerald)" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-navy)' }}>All upcoming events settled</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>No pending deadlines in the next 90 days</span>
+            </div>
+          )}
         </div>
 
-        <div style={{
-          background: '#F0FDFA',
-          border: '1px solid #99F6E4',
-          borderRadius: 'var(--radius-lg)',
-          padding: '20px 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0D9488', boxShadow: 'var(--shadow-xs)' }}>
-              <Wallet size={20} />
-            </div>
-            <div>
-              <strong style={{ color: 'var(--text-main)', fontSize: '15px' }}>Realized Funds</strong>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-                {realizedCount} proceeds received from matured, sold, or redeemed assets.
-              </p>
-            </div>
-          </div>
-          <button
-            className="btn btn-primary btn-sm"
-            style={{ background: '#0D9488', borderColor: '#0F766E' }}
-            onClick={() => navigate('/realized-funds')}
+        {/* 5. Small Recent Activity Section */}
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-card)',
+            borderRadius: '14px',
+            padding: '24px',
+            boxShadow: 'var(--shadow-sm)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '18px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid var(--border-light)'
+            }}
           >
-            <span>Open</span>
-            <ArrowRight size={14} />
-          </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={16} color="var(--color-navy)" />
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-navy)', margin: 0 }}>
+                Recent Transactions
+              </h2>
+            </div>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '6px',
+                background: 'var(--bg-surface-subtle)',
+                color: 'var(--color-charcoal)',
+                border: '1px solid var(--border-light)'
+              }}
+            >
+              Activity
+            </span>
+          </div>
+
+          {recentActivityList.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {recentActivityList.map((act) => (
+                <div
+                  key={act.id}
+                  onClick={() => {
+                    if (act.route) navigate(act.route);
+                  }}
+                  role={act.route ? 'button' : undefined}
+                  tabIndex={act.route ? 0 : undefined}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '11px 12px',
+                    borderRadius: '10px',
+                    border: '1px solid var(--border-light)',
+                    background: 'var(--bg-surface-soft)',
+                    cursor: act.route ? 'pointer' : 'default',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (act.route) {
+                      e.currentTarget.style.background = 'var(--bg-surface)';
+                      e.currentTarget.style.borderColor = 'var(--border-hover)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (act.route) {
+                      e.currentTarget.style.background = 'var(--bg-surface-soft)';
+                      e.currentTarget.style.borderColor = 'var(--border-light)';
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '6px',
+                        background: act.isIncome ? 'var(--color-emerald-bg)' : 'var(--bg-surface-subtle)',
+                        border: act.isIncome ? '1px solid var(--color-emerald-border)' : '1px solid var(--border-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: act.isIncome ? 'var(--color-emerald)' : 'var(--color-charcoal)',
+                        flexShrink: 0
+                      }}
+                    >
+                      {act.isIncome ? <ArrowDownLeft size={14} /> : <ArrowUpRight size={14} />}
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: 'var(--color-navy)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {act.title}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', marginTop: '1px' }}>
+                        {formatDate(act.date)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
+                    <span
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: act.isIncome ? 'var(--color-emerald)' : 'var(--color-navy)'
+                      }}
+                    >
+                      {act.isIncome ? '+ ' : ''}₹ {formatCurrency(act.amount)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '36px 20px',
+                textAlign: 'center',
+                color: 'var(--color-charcoal-muted)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <AlertCircle size={24} color="var(--color-charcoal-muted)" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-navy)' }}>No transaction history</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>Transactions appear as assets are added or realized</span>
+            </div>
+          )}
         </div>
       </div>
     </div>

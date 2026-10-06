@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { BullionInvestment } from '../types';
-import { BULLION_METADATA, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
 import { formatCurrency } from '../utils/calculations';
 
 interface BullionDonutChartProps {
@@ -18,11 +18,7 @@ export const BullionDonutChart: React.FC<BullionDonutChartProps> = ({ investment
   const typeAggregates: Record<string, { type: string; name: string; icon: string; color: string; amount: number; count: number }> = {};
 
   verifiedItems.forEach((b) => {
-    const meta = BULLION_METADATA[b.type] || {
-      name: b.typeName || 'Other',
-      icon: '💎',
-      color: '#7C3AED'
-    };
+    const meta = getBullionMetadata(b.typeName || b.type);
 
     if (!typeAggregates[b.type]) {
       typeAggregates[b.type] = {

@@ -14,6 +14,9 @@ import { AddPostOfficePage } from './pages/AddPostOfficePage';
 import { BullionsDashboardPage } from './pages/BullionsDashboardPage';
 import { BullionDetailsPage } from './pages/BullionDetailsPage';
 import { AddBullionPage } from './pages/AddBullionPage';
+import { RealEstateDashboardPage } from './pages/RealEstateDashboardPage';
+import { RealEstateDetailsPage } from './pages/RealEstateDetailsPage';
+import { AddPropertyPage } from './pages/AddPropertyPage';
 import { RealizedFundsDashboardPage } from './pages/RealizedFundsDashboardPage';
 import { AddRealizedFundPage } from './pages/AddRealizedFundPage';
 
@@ -77,7 +80,7 @@ const AppContent: React.FC = () => {
           path="/fds"
           element={
             <ProtectedRoute>
-              <FdDashboardPage />
+              <FdDashboardPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />
@@ -105,7 +108,7 @@ const AppContent: React.FC = () => {
           path="/post-office"
           element={
             <ProtectedRoute>
-              <PostOfficeDashboardPage />
+              <PostOfficeDashboardPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />
@@ -152,6 +155,34 @@ const AppContent: React.FC = () => {
           element={
             <ProtectedRoute>
               <AddBullionPage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Real Estate Routes */}
+        <Route
+          path="/real-estate"
+          element={
+            <ProtectedRoute>
+              <RealEstateDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/real-estate/:id"
+          element={
+            <ProtectedRoute>
+              <RealEstateDetailsPage onShowToast={showToast} />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/add-property"
+          element={
+            <ProtectedRoute>
+              <AddPropertyPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />

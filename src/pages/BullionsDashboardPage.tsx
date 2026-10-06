@@ -2,8 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import type { ViewMode } from '../types';
-import { formatCurrency } from '../utils/calculations';
-import { getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { formatCurrency, formatDate } from '../utils/calculations';
+import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { BullionCard } from '../components/BullionCard';
 import { BullionTable } from '../components/BullionTable';
 import { BullionDonutChart } from '../components/BullionDonutChart';
@@ -15,7 +16,8 @@ import {
   Table as TableIcon,
   Coins,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Clock
 } from 'lucide-react';
 
 export const BullionsDashboardPage: React.FC = () => {
@@ -32,6 +34,30 @@ export const BullionsDashboardPage: React.FC = () => {
   const rawInvestments = useMemo(() => {
     return (activeMember?.bullionsInvestments || []).filter((b) => !b.status || b.status === 'active');
   }, [activeMember?.bullionsInvestments]);
+
+  // Distinct types for dynamic filtering
+  const distinctBullionTypes = useMemo(() => {
+    const set = new Set<string>();
+    rawInvestments.forEach((b) => {
+      const t = b.typeName || b.type;
+      if (t) set.add(t);
+    });
+    return Array.from(set);
+  }, [rawInvestments]);
+
+  // Latest payment due date across all bullion assets
+  const latestDueDateBullion = useMemo(() => {
+    const withDueDate = rawInvestments.filter((b) => Boolean(b.paymentDueDate));
+    if (withDueDate.length === 0) return null;
+    const sorted = [...withDueDate].sort(
+      (a, b) => new Date(a.paymentDueDate!).getTime() - new Date(b.paymentDueDate!).getTime()
+    );
+    return sorted[0];
+  }, [rawInvestments]);
+
+  const latestDeadline = latestDueDateBullion?.paymentDueDate
+    ? getDeadlineClassification(latestDueDateBullion.paymentDueDate)
+    : null;
 
   // Summary Metrics calculations
   const { totalVerifiedValue, verifiedCount, unverifiedCount } = useMemo(() => {
@@ -70,9 +96,9 @@ export const BullionsDashboardPage: React.FC = () => {
       );
     }
 
-    // Type filter
+    // Dynamic type filter
     if (typeFilter !== 'all') {
-      list = list.filter((b) => b.type === typeFilter);
+      list = list.filter((b) => (b.typeName || b.type) === typeFilter || b.type === typeFilter);
     }
 
     // Status filter
@@ -177,12 +203,51 @@ export const BullionsDashboardPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Asset Classes</span>
-          <span className="stat-number" style={{ fontSize: '20px', color: 'var(--text-main)' }}>
-            Gold · Silver · Platinum
-          </span>
-          <span className="stat-subtext">Inflation hedge &amp; store of value</span>
+        <div
+          className="stat-metric-card"
+          style={{
+            background: latestDeadline?.bgTint || 'white',
+            borderColor: latestDeadline?.borderTint || 'var(--border-light)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Clock size={14} color={latestDeadline?.hexColor || 'var(--text-muted)'} />
+            <span className="stat-kicker" style={{ margin: 0 }}>Latest Payment Due Date</span>
+          </div>
+          {latestDueDateBullion && latestDeadline ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '2px', gap: '6px' }}>
+                <span className="stat-number" style={{ fontSize: '18px', color: latestDeadline.textDark }}>
+                  {formatDate(latestDueDateBullion.paymentDueDate!)}
+                </span>
+                <span
+                  style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: latestDeadline.hexColor,
+                    color: '#FFF',
+                    fontSize: '11px',
+                    fontWeight: 800
+                  }}
+                >
+                  {latestDeadline.relativeText}
+                </span>
+              </div>
+              <span className="stat-subtext" style={{ color: latestDeadline.textDark }}>
+                {latestDueDateBullion.itemName}: ₹ {formatCurrency(latestDueDateBullion.remainingPayment !== undefined ? latestDueDateBullion.remainingPayment : latestDueDateBullion.investedValue || 0)} due
+              </span>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                <span className="stat-number" style={{ fontSize: '18px', color: '#16A34A' }}>
+                  All Cleared
+                </span>
+                <CheckCircle size={18} color="#16A34A" />
+              </div>
+              <span className="stat-subtext">No pending payment deadlines</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -243,11 +308,12 @@ export const BullionsDashboardPage: React.FC = () => {
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value)}
               >
-                <option value="all">All Metals</option>
-                <option value="GOLD">🪙 Gold</option>
-                <option value="SILVER">🥈 Silver</option>
-                <option value="PLATINUM">💍 Platinum</option>
-                <option value="OTHER">💎 Other</option>
+                <option value="all">All Metals / Types</option>
+                {distinctBullionTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {getBullionMetadata(t).icon} {t}
+                  </option>
+                ))}
               </select>
             </div>
 

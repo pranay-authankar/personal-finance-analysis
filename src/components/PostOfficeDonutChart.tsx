@@ -10,28 +10,36 @@ interface PostOfficeDonutChartProps {
 export const PostOfficeDonutChart: React.FC<PostOfficeDonutChartProps> = ({ investments }) => {
   const [hoveredScheme, setHoveredScheme] = useState<string | null>(null);
 
-  const total = investments.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+  const total = investments.reduce((sum, inv) => {
+    if (inv.schemeType === 'RD') {
+      return sum + (Number(inv.totalDepositedAmount) || Number(inv.amount) || 0);
+    }
+    return sum + (Number(inv.amount) || 0);
+  }, 0);
 
   // Aggregate by scheme
   const schemeAggregates: Record<string, { type: string; name: string; icon: string; color: string; amount: number }> = {};
 
   investments.forEach((inv) => {
-    const meta = SCHEME_METADATA[inv.schemeType] || {
+    const normType = inv.schemeType === 'POTD' ? 'TD' : inv.schemeType;
+    const meta = SCHEME_METADATA[normType] || {
       name: inv.schemeName || 'Other Scheme',
+      shortName: normType,
       icon: '📮',
       color: '#EA580C'
     };
 
-    if (!schemeAggregates[inv.schemeType]) {
-      schemeAggregates[inv.schemeType] = {
-        type: inv.schemeType,
+    if (!schemeAggregates[normType]) {
+      schemeAggregates[normType] = {
+        type: normType,
         name: meta.shortName || meta.name,
         icon: meta.icon,
         color: meta.color,
         amount: 0
       };
     }
-    schemeAggregates[inv.schemeType].amount += Number(inv.amount) || 0;
+    const invAmt = inv.schemeType === 'RD' ? (Number(inv.totalDepositedAmount) || Number(inv.amount) || 0) : (Number(inv.amount) || 0);
+    schemeAggregates[normType].amount += invAmt;
   });
 
   const schemeList = Object.values(schemeAggregates);

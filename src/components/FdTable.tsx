@@ -35,32 +35,37 @@ export const FdTable: React.FC<FdTableProps> = ({ fds, onSelectFd }) => {
                 <td>
                   <div className="table-bank-col">
                     <div className="table-bank-icon">
-                      <Landmark size={20} color="var(--brand-primary)" />
+                      <Landmark size={20} color="var(--color-navy)" />
                     </div>
                     <div>
-                      <strong>{fd.bankName}</strong>
-                      <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{fd.accountNumber || '-'}</div>
+                      <strong style={{ color: 'var(--color-navy)' }}>{fd.bankName}</strong>
+                      <div style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)' }}>{fd.accountNumber || '-'}</div>
                     </div>
                   </div>
                 </td>
                 <td>
-                  <span className="table-principal-text">₹ {formatCurrency(fd.principal)}</span>
+                  <span className="table-principal-text">
+                    <span style={{ color: 'var(--color-gold)', marginRight: '2px' }}>₹</span>
+                    {formatCurrency(fd.principal)}
+                  </span>
                 </td>
                 <td>
                   <span className="fd-interest-badge">{Number(fd.interestRate).toFixed(2)}%</span>
                 </td>
                 <td>
-                  <span>{calc.tenureFormatted}</span>
+                  <span style={{ color: 'var(--color-charcoal)' }}>{calc.tenureFormatted}</span>
                 </td>
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '3px' }}>
-                    <strong>{formatDate(fd.maturityDate)}</strong>
+                    <strong style={{ color: 'var(--color-navy)' }}>{formatDate(fd.maturityDate)}</strong>
                     <span className={`urgency-pill ${mat.pillClass}`}>{mat.relativeText}</span>
                   </div>
                 </td>
                 <td>
-                  <strong className="table-payout-text">₹ {formatCurrency(calc.maturityAmount)}</strong>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  <strong className="table-payout-text" style={{ color: 'var(--color-navy)' }}>
+                    ₹ {formatCurrency(calc.maturityAmount)}
+                  </strong>
+                  <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>
                     +₹ {formatCurrency(calc.interestEarned)} interest
                   </div>
                 </td>
@@ -70,7 +75,7 @@ export const FdTable: React.FC<FdTableProps> = ({ fds, onSelectFd }) => {
                       <ImageIcon size={14} /> Attached
                     </span>
                   ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>None</span>
+                    <span style={{ color: 'var(--color-charcoal-muted)', fontSize: '12px' }}>None</span>
                   )}
                 </td>
                 <td>

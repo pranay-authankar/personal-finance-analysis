@@ -1,21 +1,21 @@
 import React from 'react';
 import type { FixedDeposit } from '../types';
-import { calculateFDValues, formatCurrency, formatDate } from '../utils/calculations';
-import { getMaturityClassification } from '../utils/maturityColorMap';
-import { Landmark, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { formatCurrency, formatDate } from '../utils/calculations';
+import { maskAccountNumber, getFdStatus } from '../utils/fdUiHelpers';
 
 interface FdCardProps {
   fd: FixedDeposit;
   onClick: () => void;
+  isSelected?: boolean;
 }
 
-export const FdCard: React.FC<FdCardProps> = ({ fd, onClick }) => {
-  const calc = calculateFDValues(fd.principal, fd.interestRate, fd.startDate, fd.maturityDate);
-  const mat = getMaturityClassification(fd.maturityDate);
+export const FdCard: React.FC<FdCardProps> = ({ fd, onClick, isSelected }) => {
+  const statusInfo = getFdStatus(fd.maturityDate, fd.actualEndDate, fd.status);
+  const maskedAcc = maskAccountNumber(fd.accountNumber);
 
   return (
     <div
-      className={`fd-desktop-card ${mat.shadeClass}`}
+      className={`fd-clean-card ${isSelected ? 'selected' : ''}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -26,49 +26,56 @@ export const FdCard: React.FC<FdCardProps> = ({ fd, onClick }) => {
         }
       }}
     >
-      <div className="fd-card-head">
-        <div className="fd-bank-group">
-          <div className="fd-bank-icon-box">
-            <Landmark size={20} color="var(--brand-primary)" />
-          </div>
-          <div className="fd-bank-texts">
-            <span className="fd-bank-name-text">{fd.bankName}</span>
-            <span className="fd-acc-no-text">{fd.accountNumber || 'Verified Account'}</span>
-          </div>
-        </div>
-        <span className="fd-interest-badge">{Number(fd.interestRate).toFixed(2)}% p.a.</span>
+      {/* Top Header Row: Bank Name and Maturity Status Indicator */}
+      <div className="fd-card-header">
+        <h3 className="fd-card-bank-name" title={fd.bankName}>
+          {fd.bankName}
+        </h3>
+        <span
+          className="fd-card-status-pill"
+          style={{
+            backgroundColor: statusInfo.bgColor,
+            color: statusInfo.textColor,
+            borderColor: statusInfo.borderColor
+          }}
+        >
+          <span
+            className="fd-status-dot"
+            style={{ backgroundColor: statusInfo.dotColor }}
+          />
+          <span>{statusInfo.label}</span>
+        </span>
       </div>
 
-      <div className="fd-card-mid">
-        <div className="mid-amount-col">
-          <span className="val-kicker">Principal Amount</span>
-          <span className="card-principal-val">₹ {formatCurrency(fd.principal)}</span>
-          <span className="card-payout-text">Matures to ₹ {formatCurrency(calc.maturityAmount)}</span>
-        </div>
+      {/* Masked Account Number */}
+      <div className="fd-card-account-no">
+        {maskedAcc}
+      </div>
 
-        <div className="mid-date-col">
-          <span className="val-kicker">Maturity Date</span>
-          <span className="card-maturity-date">{formatDate(fd.maturityDate)}</span>
-          <span className={`urgency-pill ${mat.pillClass}`} style={{ marginTop: '4px' }}>
-            <span>●</span>
-            <span>{mat.relativeText}</span>
-          </span>
+      {/* Principal Amount */}
+      <div className="fd-card-principal-group">
+        <span className="fd-card-label">Principal</span>
+        <div className="fd-card-principal-val">
+          <span style={{ color: 'var(--color-gold)', marginRight: '3px' }}>₹</span>
+          {formatCurrency(fd.principal)}
         </div>
       </div>
 
-      <div className="fd-card-foot">
-        <span>Tenure: <strong>{calc.tenureFormatted}</strong></span>
-        {fd.photoUrl ? (
-          <span className="card-photo-tag">
-            <ImageIcon size={14} />
-            <span>Certificate Attached</span>
+      {/* Bottom Row: Interest Rate and Maturity Date */}
+      <div className="fd-card-bottom-grid">
+        <div>
+          <span className="fd-card-label">Interest Rate</span>
+          <span className="fd-card-meta-val">
+            {Number(fd.interestRate).toFixed(2)}% p.a.
           </span>
-        ) : (
-          <span style={{ color: 'var(--brand-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <span>View Details</span>
-            <ChevronRight size={14} />
+        </div>
+
+        <div style={{ textAlign: 'right' }}>
+          <span className="fd-card-label">Maturity Date</span>
+          <span className="fd-card-meta-val">
+            {formatDate(fd.maturityDate)}
           </span>
-        )}
+        </div>
       </div>
     </div>
   );

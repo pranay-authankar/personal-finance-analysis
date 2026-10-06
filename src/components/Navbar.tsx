@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import { Layers, PieChart, Landmark, Mail, Coins, Wallet, RotateCcw, LogOut, ChevronDown } from 'lucide-react';
+import { Layers, PieChart, Landmark, Mail, Coins, Building, Wallet, Trash2, LogOut, ChevronDown } from 'lucide-react';
 
 interface NavbarProps {
   onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
@@ -10,7 +10,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeMember, logout, resetDemoData, isAuthenticated } = useInvestments();
+  const { activeMember, logout, clearAllData, isAuthenticated } = useInvestments();
 
   if (!isAuthenticated) return null;
 
@@ -18,18 +18,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
   const isFds = location.pathname.startsWith('/fds');
   const isPostOffice = location.pathname.startsWith('/post-office');
   const isBullions = location.pathname.startsWith('/bullions');
+  const isRealEstate = location.pathname.startsWith('/real-estate') || location.pathname.startsWith('/add-property');
   const isRealized = location.pathname.startsWith('/realized-funds');
 
   const fdCount = activeMember?.fds?.length || 0;
   const poCount = activeMember?.postOfficeInvestments?.length || 0;
   const bulCount = activeMember?.bullionsInvestments?.length || 0;
+  const realEstateCount = (activeMember?.properties || []).filter(
+    (p) => p.property_status === 'ACTIVE'
+  ).length;
   const realizedCount = activeMember?.realizedFunds?.length || 0;
 
-  const handleReset = () => {
-    if (window.confirm('Reset all investment data back to clean family sample records?')) {
-      resetDemoData();
-      onShowToast('Demo data reloaded successfully!', 'success');
-      navigate('/home');
+  const handleClearAll = async () => {
+    const confirmed = window.confirm(
+      '⚠️ PERMANENT ACTION: Clear all application data?\n\nThis will permanently remove all stored records from all 11 CSV files while preserving file headers. Application state will be reset to a clean zero-data state.\n\nAre you sure you want to proceed?'
+    );
+    if (confirmed) {
+      await clearAllData();
+      onShowToast('All application data cleared permanently (zero-data state).', 'warn');
+      navigate('/family-select');
     }
   };
 
@@ -91,6 +98,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
           </button>
 
           <button
+            className={`nav-tab ${isRealEstate ? 'active' : ''}`}
+            onClick={() => navigate('/real-estate')}
+          >
+            <Building size={18} strokeWidth={2} />
+            <span>Real Estate</span>
+            <span className="nav-pill-badge" style={{ background: '#7C3AED' }}>{realEstateCount}</span>
+          </button>
+
+          <button
             className={`nav-tab ${isRealized ? 'active' : ''}`}
             onClick={() => navigate('/realized-funds')}
           >
@@ -117,11 +133,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
 
           <button
             className="btn btn-subtle btn-sm"
-            onClick={handleReset}
-            title="Reset to default demo investments"
+            style={{ color: '#DC2626' }}
+            onClick={handleClearAll}
+            title="Permanently remove all records across all 11 CSV files (Zero-Data State)"
           >
-            <RotateCcw size={15} />
-            <span>Reset Demo</span>
+            <Trash2 size={15} />
+            <span>Clear All Data</span>
           </button>
 
           <button

@@ -1,421 +1,419 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import type { FilterType, SortType, ViewMode } from '../types';
-import { formatCurrency } from '../utils/calculations';
-import { getMaturityClassification } from '../utils/maturityColorMap';
+import { formatCurrency, formatDate } from '../utils/calculations';
+import { getPostOfficeStatus, getNextPostOfficeDueInfo } from '../utils/postOfficeUiHelpers';
 import { PostOfficeCard } from '../components/PostOfficeCard';
-import { PostOfficeTable } from '../components/PostOfficeTable';
-import { PostOfficeDonutChart } from '../components/PostOfficeDonutChart';
+import { PostOfficeDetailsPanel } from '../components/PostOfficeDetailsPanel';
+import { PostOfficeFilterPopover, type PostOfficeFilterState } from '../components/PostOfficeFilterPopover';
 import {
-  PlusCircle,
+  Plus,
   Search,
   X,
+  Mail,
   LayoutGrid,
-  Table as TableIcon,
-  HelpCircle,
-  Mail
+  List as ListIcon
 } from 'lucide-react';
 
-export const PostOfficeDashboardPage: React.FC = () => {
+interface PostOfficeDashboardPageProps {
+  onShowToast?: (msg: string, type?: 'success' | 'info' | 'warn') => void;
+}
+
+export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const { activeMember } = useInvestments();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [schemeFilter, setSchemeFilter] = useState<string>('all');
-  const [sort, setSort] = useState<SortType>('maturity-asc');
-  const [search, setSearch] = useState('');
-  const [showColorMapLegend, setShowColorMapLegend] = useState(false);
-
-  // Only active schemes are displayed in the current investment section
+  // Active (non-closed/non-redeemed) investments
   const rawInvestments = useMemo(() => {
-    return (activeMember?.postOfficeInvestments || []).filter((inv) => !inv.status || inv.status === 'active');
+    return (activeMember?.postOfficeInvestments || []).filter(
+      (inv) => !inv.actualEndDate && inv.status !== 'closed' && inv.status !== 'redeemed'
+    );
   }, [activeMember?.postOfficeInvestments]);
 
-  // Metrics
+  // Selected for Slide-over Details Panel
+  const [selectedPoId, setSelectedPoId] = useState<string | null>(null);
+
+  // Scheme selector: All | TD | MIS | RD | SCSS
+  const [selectedSchemeTab, setSelectedSchemeTab] = useState<string>('All');
+
+  // Search query
+  const [search, setSearch] = useState('');
+
+  // View mode
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+
+  // Filter state
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<PostOfficeFilterState>({
+    scheme: 'all',
+    status: 'all',
+    amountRange: 'all',
+    maturityRange: 'all'
+  });
+
+  const handleResetFilters = () => {
+    setFilters({
+      scheme: 'all',
+      status: 'all',
+      amountRange: 'all',
+      maturityRange: 'all'
+    });
+    setSelectedSchemeTab('All');
+    setSearch('');
+  };
+
+  // 1. Compact Overview: Total Value
   const totalValue = useMemo(() => {
-    return rawInvestments.reduce((sum, inv) => sum + (Number(inv.amount) || 0), 0);
+    return rawInvestments.reduce((sum, inv) => {
+      if (inv.schemeType === 'RD') {
+        return sum + (Number(inv.totalDepositedAmount) || Number(inv.amount) || 0);
+      }
+      return sum + (Number(inv.amount) || 0);
+    }, 0);
   }, [rawInvestments]);
 
-  const totalMonthlyIncome = useMemo(() => {
-    return rawInvestments.reduce((sum, inv) => sum + (Number(inv.monthlyPayout) || 0), 0);
+  // 2. Compact Overview: Next Due
+  const nextDueInfo = useMemo(() => {
+    return getNextPostOfficeDueInfo(rawInvestments);
   }, [rawInvestments]);
 
-  const totalQuarterlyIncome = useMemo(() => {
-    return rawInvestments.reduce((sum, inv) => sum + (Number(inv.quarterlyPayout) || 0), 0);
-  }, [rawInvestments]);
-
-  // Filtering and Sorting
-  const processedInvestments = useMemo(() => {
+  // Filtering
+  const filteredInvestments = useMemo(() => {
     let list = [...rawInvestments];
+
+    // Scheme selector tab
+    if (selectedSchemeTab !== 'All') {
+      list = list.filter((i) => {
+        if (selectedSchemeTab === 'TD') return i.schemeType === 'TD' || (i.schemeType as string) === 'POTD';
+        return i.schemeType === selectedSchemeTab;
+      });
+    }
 
     // Search query
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter(
-        (inv) =>
-          inv.schemeName.toLowerCase().includes(q) ||
-          inv.accountNumber.toLowerCase().includes(q) ||
-          (inv.branch && inv.branch.toLowerCase().includes(q))
+        (i) =>
+          i.schemeName.toLowerCase().includes(q) ||
+          i.accountNumber.toLowerCase().includes(q)
       );
     }
 
-    // Specific scheme filter
-    if (schemeFilter !== 'all') {
-      list = list.filter((inv) => inv.schemeType === schemeFilter);
+    // Filter Popover: Scheme
+    if (filters.scheme !== 'all') {
+      list = list.filter((i) => {
+        if (filters.scheme === 'TD') return i.schemeType === 'TD' || (i.schemeType as string) === 'POTD';
+        return i.schemeType === filters.scheme;
+      });
     }
 
-    // General filter pills
-    if (filter === 'urgent') {
-      list = list.filter((inv) => getMaturityClassification(inv.maturityDate).level === 1);
-    } else if (filter === 'this-year') {
-      list = list.filter((inv) => getMaturityClassification(inv.maturityDate).level <= 3);
-    } else if (filter === 'over-year') {
-      list = list.filter((inv) => getMaturityClassification(inv.maturityDate).level >= 4);
-    } else if (filter === 'with-photo') {
-      list = list.filter((inv) => Boolean(inv.photoUrl));
+    // Filter Popover: Status
+    if (filters.status !== 'all') {
+      list = list.filter((i) => {
+        const st = getPostOfficeStatus(i);
+        if (filters.status === 'safe') return st.type === 'safe';
+        if (filters.status === 'approaching') return st.type === 'approaching' || st.type === 'pending';
+        if (filters.status === 'due') return st.type === 'due' || st.type === 'overdue';
+        if (filters.status === 'missed') return st.type === 'missed';
+        return true;
+      });
     }
 
-    // Sorting
-    list.sort((a, b) => {
-      if (sort === 'maturity-asc') {
-        return new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime();
-      } else if (sort === 'maturity-desc') {
-        return new Date(b.maturityDate).getTime() - new Date(a.maturityDate).getTime();
-      } else if (sort === 'amount-desc') {
-        return (Number(b.amount) || 0) - (Number(a.amount) || 0);
-      } else if (sort === 'amount-asc') {
-        return (Number(a.amount) || 0) - (Number(b.amount) || 0);
-      } else if (sort === 'rate-desc') {
-        return (Number(b.interestRate) || 0) - (Number(a.interestRate) || 0);
-      } else if (sort === 'bank-asc') {
-        return a.schemeName.localeCompare(b.schemeName);
-      }
-      return 0;
-    });
+    // Filter Popover: Amount Range
+    if (filters.amountRange !== 'all') {
+      list = list.filter((i) => {
+        const amt = i.schemeType === 'RD' ? (i.monthlyDeposit || 0) : (Number(i.amount) || 0);
+        if (filters.amountRange === 'under_1l') return amt < 100000;
+        if (filters.amountRange === '1l_5l') return amt >= 100000 && amt <= 500000;
+        if (filters.amountRange === '5l_10l') return amt > 500000 && amt <= 1000000;
+        if (filters.amountRange === 'above_10l') return amt > 1000000;
+        return true;
+      });
+    }
+
+    // Filter Popover: Maturity Range
+    if (filters.maturityRange !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      list = list.filter((i) => {
+        if (!i.maturityDate) return false;
+        const mat = new Date(i.maturityDate);
+        mat.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((mat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (filters.maturityRange === 'next_30d') return diffDays <= 30;
+        if (filters.maturityRange === 'next_90d') return diffDays <= 90;
+        if (filters.maturityRange === 'next_180d') return diffDays <= 180;
+        if (filters.maturityRange === 'next_365d') return diffDays <= 365;
+        if (filters.maturityRange === 'over_1y') return diffDays > 365;
+        return true;
+      });
+    }
+
+    // Default sort by maturity date ascending
+    list.sort((a, b) => new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime());
 
     return list;
-  }, [rawInvestments, search, schemeFilter, filter, sort]);
+  }, [rawInvestments, selectedSchemeTab, search, filters]);
+
+  const selectedInvestment = useMemo(() => {
+    if (!selectedPoId) return null;
+    return rawInvestments.find((i) => i.id === selectedPoId) || null;
+  }, [rawInvestments, selectedPoId]);
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    selectedSchemeTab !== 'All' ||
+    filters.scheme !== 'all' ||
+    filters.status !== 'all' ||
+    filters.amountRange !== 'all' ||
+    filters.maturityRange !== 'all';
+
+  const toastHandler = onShowToast || ((_msg, _type) => {});
 
   return (
-    <div className="main-content fade-in">
-      {/* Header & Breadcrumbs */}
-      <div className="fd-header-area">
+    <div className="main-content fade-in" style={{ maxWidth: '1240px', margin: '0 auto', paddingBottom: '48px' }}>
+      {/* 1. Header: “Post Office” + “+ Add Scheme” */}
+      <div className="po-executive-header">
         <div>
-          <nav className="breadcrumb-nav">
-            <span className="breadcrumb-link" onClick={() => navigate('/home')}>
-              Portfolio Overview
+          <div className="po-breadcrumb-text">
+            <span onClick={() => navigate('/home')} className="po-breadcrumb-link">
+              Portfolio
             </span>
             <span>/</span>
-            <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Post Office Schemes</span>
-          </nav>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
-            Post Office Savings &amp; Investment Vault
-          </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Viewing government post office deposits for <strong>{activeMember?.name}</strong> ({activeMember?.role})
+            <span>Post Office</span>
+          </div>
+          <h1 className="po-page-title">Post Office</h1>
+          <p className="po-page-subtitle">
+            Small savings schemes for {activeMember?.name || 'User'}
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowColorMapLegend(!showColorMapLegend)}
-            title="Explain Maturity Colour Map"
-          >
-            <HelpCircle size={16} />
-            <span>Maturity Colour Map</span>
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            style={{ background: '#EA580C', borderColor: '#C2410C' }}
-            onClick={() => navigate('/add-post-office')}
-          >
-            <PlusCircle size={18} />
-            <span>Add Post Office Investment</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-primary po-primary-add-btn"
+          onClick={() => navigate('/add-post-office')}
+        >
+          <Plus size={16} />
+          <span>Add Scheme</span>
+        </button>
       </div>
 
-      {/* Colour Map Legend Card (Toggleable) */}
-      {showColorMapLegend && (
-        <div className="card-panel" style={{ padding: '20px', marginBottom: '24px', background: '#F8FAFC' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>
-              Post Office Maturity Urgency Colour Map:
-            </strong>
-            <button className="btn btn-subtle btn-sm" onClick={() => setShowColorMapLegend(false)}>
-              <X size={16} />
-            </button>
+      {/* 2. Compact Overview: Total Value, Active Schemes, Next Due */}
+      <div className="po-overview-grid">
+        {/* Card 1: Total Value */}
+        <div className="po-overview-card">
+          <span className="po-overview-kicker">Total Value</span>
+          <div className="po-overview-value">
+            <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
+            {formatCurrency(totalValue)}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '12px' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-urgent-bg)', borderLeft: '4px solid var(--shade-urgent)', color: 'var(--shade-urgent)', fontSize: '12px', fontWeight: 700 }}>
-              ● &lt; 3 Months (Immediate / Urgent)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-near-bg)', borderLeft: '4px solid var(--shade-near)', color: 'var(--shade-near)', fontSize: '12px', fontWeight: 700 }}>
-              ● 3 – 6 Months (Near Term)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-medium-bg)', borderLeft: '4px solid var(--shade-medium)', color: 'var(--shade-medium)', fontSize: '12px', fontWeight: 700 }}>
-              ● 6 – 12 Months (Medium Term)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-light-bg)', borderLeft: '4px solid var(--shade-light)', color: 'var(--shade-light)', fontSize: '12px', fontWeight: 700 }}>
-              ● 1 – 2 Years (Extended)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-lightest-bg)', borderLeft: '4px solid var(--shade-lightest)', color: 'var(--shade-lightest)', fontSize: '12px', fontWeight: 700 }}>
-              ● &gt; 2 Years (Calm Sky Slate)
-            </div>
+          <div className="po-overview-sub">
+            Government sovereign backed
           </div>
         </div>
-      )}
 
-      {/* Top Post Office Summary Metrics Grid */}
-      <div className="fd-summary-stats-grid">
-        <div className="stat-metric-card" style={{ background: '#FFF7ED', borderColor: '#FED7AA' }}>
-          <span className="stat-kicker">Total Post Office Investment</span>
-          <span className="stat-number" style={{ color: '#EA580C' }}>
-            ₹ {formatCurrency(totalValue)}
-          </span>
-          <span className="stat-subtext">
-            {rawInvestments.length} Active {rawInvestments.length === 1 ? 'Scheme' : 'Schemes'}
-          </span>
-        </div>
-
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Monthly Guaranteed Income</span>
-          <span className="stat-number" style={{ color: 'var(--color-emerald)' }}>
-            ₹ {formatCurrency(totalMonthlyIncome)}
-          </span>
-          <span className="stat-subtext">via Monthly Income Scheme (MIS)</span>
-        </div>
-
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Quarterly Senior Returns</span>
-          <span className="stat-number" style={{ color: '#2563EB' }}>
-            ₹ {formatCurrency(totalQuarterlyIncome)}
-          </span>
-          <span className="stat-subtext">via SCSS Senior Citizen accounts</span>
-        </div>
-
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Sovereign Safety</span>
-          <span className="stat-number" style={{ fontSize: '20px', color: 'var(--text-main)' }}>
-            100% Guaranteed
-          </span>
-          <span className="stat-subtext">Backed by Government of India</span>
-        </div>
-      </div>
-
-      {/* Donut Chart: Post Office Scheme Distribution */}
-      {rawInvestments.length > 0 && (
-        <div className="card-panel" style={{ padding: '28px', marginBottom: '28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div>
-              <span className="kicker">Scheme Distribution</span>
-              <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-main)', marginTop: '2px' }}>
-                Allocation Across Post Office Schemes
-              </h2>
-            </div>
-            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              Hover over sections to inspect scheme weights
-            </div>
+        {/* Card 2: Active Schemes */}
+        <div className="po-overview-card">
+          <span className="po-overview-kicker">Active Schemes</span>
+          <div className="po-overview-value">
+            {rawInvestments.length}
+            <span className="po-overview-unit">Accounts</span>
           </div>
-
-          <PostOfficeDonutChart investments={rawInvestments} />
+          <div className="po-overview-sub">
+            TD, MIS, RD &amp; SCSS portfolios
+          </div>
         </div>
-      )}
 
-      {/* Controls Bar: Search, Filters, Sorting, and View Switcher */}
-      <div className="fd-controls-bar">
-        <div className="controls-top-row">
-          {/* Search box */}
-          <div className="search-box-wrapper">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              className="form-input search-input"
-              placeholder="Search by scheme name, account number, or branch..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                type="button"
-                className="btn btn-subtle btn-sm"
-                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', padding: '4px' }}
-                onClick={() => setSearch('')}
-              >
-                <X size={16} />
-              </button>
+        {/* Card 3: Next Due */}
+        <div className="po-overview-card">
+          <span className="po-overview-kicker">Next Due</span>
+          <div className="po-overview-value" style={{ fontSize: nextDueInfo.dateStr ? '20px' : '26px' }}>
+            {nextDueInfo.dateStr ? formatDate(nextDueInfo.dateStr) : 'None'}
+          </div>
+          <div className="po-overview-sub">
+            {nextDueInfo.status ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: nextDueInfo.status.dotColor
+                  }}
+                />
+                <span style={{ color: nextDueInfo.status.textColor, fontWeight: 600 }}>
+                  {nextDueInfo.title}
+                  {nextDueInfo.daysLeft !== null && nextDueInfo.daysLeft >= 0
+                    ? ` (in ${nextDueInfo.daysLeft}d)`
+                    : ''}
+                </span>
+              </span>
+            ) : (
+              'No upcoming dates'
             )}
           </div>
-
-          <div className="controls-right-actions">
-            {/* Scheme Type Filter */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="poSchemeFilter" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Scheme:
-              </label>
-              <select
-                id="poSchemeFilter"
-                className="form-select"
-                style={{ width: 'auto', minWidth: '150px', padding: '8px 12px' }}
-                value={schemeFilter}
-                onChange={(e) => setSchemeFilter(e.target.value)}
-              >
-                <option value="all">All Schemes</option>
-                <option value="MIS">MIS (Monthly Income)</option>
-                <option value="RD">RD (Recurring Deposit)</option>
-                <option value="POTD">Time Deposit (POTD)</option>
-                <option value="SCSS">Senior Citizen (SCSS)</option>
-                <option value="PPF">PPF</option>
-                <option value="NSC">NSC</option>
-                <option value="KVP">KVP</option>
-                <option value="SUKANYA">Sukanya Samriddhi</option>
-                <option value="MAHILA_SAMMAN">Mahila Samman</option>
-              </select>
-            </div>
-
-            {/* Sorting Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="poSortSelect" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Sort:
-              </label>
-              <select
-                id="poSortSelect"
-                className="form-select"
-                style={{ width: 'auto', minWidth: '180px', padding: '8px 12px' }}
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortType)}
-              >
-                <option value="maturity-asc">Maturity: Earliest First</option>
-                <option value="maturity-desc">Maturity: Latest First</option>
-                <option value="amount-desc">Amount: Highest First</option>
-                <option value="amount-asc">Amount: Lowest First</option>
-                <option value="rate-desc">Interest Rate: Highest First</option>
-                <option value="bank-asc">Scheme Name: A to Z</option>
-              </select>
-            </div>
-
-            {/* View Mode Toggle: Cards vs Table */}
-            <div className="view-toggle-group">
-              <button
-                type="button"
-                className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
-                onClick={() => setViewMode('cards')}
-                title="Cards View"
-              >
-                <LayoutGrid size={16} />
-                <span>Cards</span>
-              </button>
-              <button
-                type="button"
-                className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-                title="Table View"
-              >
-                <TableIcon size={16} />
-                <span>Table</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="filter-pills-row">
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Urgency:</span>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
-            All Post Office ({rawInvestments.length})
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'urgent' ? 'active' : ''}`}
-            onClick={() => setFilter('urgent')}
-          >
-            ● &lt; 3 Months (Urgent)
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'this-year' ? 'active' : ''}`}
-            onClick={() => setFilter('this-year')}
-          >
-            Maturing This Year
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'over-year' ? 'active' : ''}`}
-            onClick={() => setFilter('over-year')}
-          >
-            Long Term (&gt; 1 Year)
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'with-photo' ? 'active' : ''}`}
-            onClick={() => setFilter('with-photo')}
-          >
-            📷 With Document
-          </button>
         </div>
       </div>
 
-      {/* Main List Render: Cards or Table */}
-      {processedInvestments.length === 0 ? (
-        <div className="fd-empty-state">
-          <div className="empty-state-icon" style={{ background: '#FFF7ED', color: '#EA580C' }}>
-            <Mail size={36} />
-          </div>
-          <h3 className="empty-state-title">No Post Office Investments Found</h3>
-          <p className="empty-state-desc">
-            {search || filter !== 'all' || schemeFilter !== 'all'
-              ? 'No records match your selected filters. Try clearing search or filters.'
-              : `There are no Post Office savings records recorded for ${activeMember?.name}. Click below to add the first one!`}
-          </p>
-          {search || filter !== 'all' || schemeFilter !== 'all' ? (
+      {/* 3. Scheme Selector: All | TD | MIS | RD | SCSS */}
+      <div className="po-scheme-selector-bar">
+        {['All', 'TD', 'MIS', 'RD', 'SCSS'].map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            className={`po-scheme-tab ${selectedSchemeTab === tab ? 'active' : ''}`}
+            onClick={() => setSelectedSchemeTab(tab)}
+          >
+            <span>{tab === 'All' ? 'All Schemes' : tab}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 4. Controls Bar: Search + Compact Filter + View Switcher */}
+      <div className="po-toolbar-container">
+        {/* Search */}
+        <div className="po-search-wrapper">
+          <Search size={16} className="po-search-icon" />
+          <input
+            type="text"
+            className="po-search-input"
+            placeholder="Search by scheme or account..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setSearch('');
-                setFilter('all');
-                setSchemeFilter('all');
-              }}
+              className="po-search-clear-btn"
+              onClick={() => setSearch('')}
+              title="Clear search"
             >
-              Clear Filters
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Toolbar Actions */}
+        <div className="po-toolbar-actions">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="po-toolbar-reset-link"
+            >
+              Clear filters
+            </button>
+          )}
+
+          {/* Compact Filter Popover */}
+          <PostOfficeFilterPopover
+            isOpen={isFilterOpen}
+            onToggle={() => setIsFilterOpen(!isFilterOpen)}
+            onClose={() => setIsFilterOpen(false)}
+            filters={filters}
+            onChange={setFilters}
+            onReset={handleResetFilters}
+          />
+
+          {/* View Toggle */}
+          <div className="po-view-toggle">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`po-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              title="Grid View"
+            >
+              <LayoutGrid size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`po-view-btn ${viewMode === 'list' ? 'active' : ''}`}
+              title="List View"
+            >
+              <ListIcon size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Main Area: Clean Scheme Cards or Empty State */}
+      {filteredInvestments.length === 0 ? (
+        <div className="po-empty-container">
+          <div className="po-empty-icon-circle">
+            <Mail size={28} color="#0F172A" />
+          </div>
+          <h3 className="po-empty-title">
+            {hasActiveFilters ? 'No Matching Investments' : 'No Post Office investments'}
+          </h3>
+          <p className="po-empty-subtitle">
+            {hasActiveFilters
+              ? 'No schemes matched your active filter criteria. Try resetting filters.'
+              : 'Add your first Post Office deposit scheme to track safe government yields.'}
+          </p>
+
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleResetFilters}
+            >
+              Reset Filters
             </button>
           ) : (
             <button
               type="button"
-              className="btn btn-primary"
-              style={{ background: '#EA580C', borderColor: '#C2410C' }}
+              className="btn btn-primary po-primary-add-btn"
               onClick={() => navigate('/add-post-office')}
             >
-              <PlusCircle size={18} />
-              <span>Add Post Office Scheme Now</span>
+              <Plus size={16} />
+              <span>Add Scheme</span>
             </button>
           )}
         </div>
       ) : viewMode === 'cards' ? (
-        <div className="fd-cards-grid">
-          {processedInvestments.map((inv) => (
+        <div className="po-grid-layout">
+          {filteredInvestments.map((inv) => (
             <PostOfficeCard
               key={inv.id}
               investment={inv}
-              onClick={() => navigate(`/post-office/${inv.id}`)}
+              isSelected={selectedPoId === inv.id}
+              onClick={() => setSelectedPoId(inv.id)}
             />
           ))}
         </div>
       ) : (
-        <PostOfficeTable
-          investments={processedInvestments}
-          onSelect={(id) => navigate(`/post-office/${id}`)}
-        />
+        <div className="po-list-layout">
+          {filteredInvestments.map((inv) => (
+            <PostOfficeCard
+              key={inv.id}
+              investment={inv}
+              isSelected={selectedPoId === inv.id}
+              onClick={() => setSelectedPoId(inv.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 6. Slide-over Details Panel */}
+      {selectedInvestment && (
+        <div className="po-drawer-backdrop fade-in" onClick={() => setSelectedPoId(null)}>
+          <div
+            className="po-drawer-sheet"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <PostOfficeDetailsPanel
+              investment={selectedInvestment}
+              onClose={() => setSelectedPoId(null)}
+              onShowToast={toastHandler}
+              isDrawer={true}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

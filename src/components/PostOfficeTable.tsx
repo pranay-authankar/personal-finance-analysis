@@ -48,46 +48,59 @@ export const PostOfficeTable: React.FC<PostOfficeTableProps> = ({ investments, o
                   </div>
                 </td>
                 <td>
-                  <span className="table-principal-text">₹ {formatCurrency(inv.amount)}</span>
-                </td>
-                <td>
-                  {inv.interestRate ? (
-                    <span className="fd-interest-badge" style={{ background: '#EFF6FF', color: '#1D4ED8', borderColor: '#BFDBFE' }}>
-                      {Number(inv.interestRate).toFixed(2)}%
-                    </span>
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)' }}>-</span>
+                  <span className="table-principal-text">
+                    ₹ {formatCurrency(inv.schemeType === 'RD' ? (inv.totalDepositedAmount ?? inv.amount) : inv.amount)}
+                  </span>
+                  {inv.schemeType === 'RD' && (
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                      ₹{formatCurrency(inv.monthlyDeposit || 0)}/mo ({inv.depositsMadeCount || 0} paid)
+                    </div>
                   )}
                 </td>
                 <td>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {inv.interestRate ? (
+                    <span className="fd-interest-badge">
+                      {Number(inv.interestRate).toFixed(2)}%
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--color-charcoal-muted)' }}>-</span>
+                  )}
+                </td>
+                <td>
+                  <span style={{ fontSize: '13px', color: 'var(--color-charcoal)' }}>
                     {inv.branch || 'Post Office'}
                   </span>
                 </td>
                 <td>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '3px' }}>
-                    <strong>{formatDate(inv.maturityDate)}</strong>
+                    <strong style={{ color: 'var(--color-navy)' }}>{formatDate(inv.maturityDate)}</strong>
                     <span className={`urgency-pill ${mat.pillClass}`}>{mat.relativeText}</span>
                   </div>
                 </td>
                 <td>
-                  {inv.monthlyPayout ? (
+                  {inv.schemeType === 'MIS' ? (
                     <div>
-                      <strong className="table-payout-text">₹ {formatCurrency(inv.monthlyPayout)}</strong>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>per month</div>
+                      <strong className="table-payout-text" style={{ color: 'var(--color-emerald)' }}>
+                        ₹ {formatCurrency(inv.monthlyPayout || inv.expectedMonthlyInterest || 0)}
+                      </strong>
+                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>per month</div>
                     </div>
-                  ) : inv.quarterlyPayout ? (
+                  ) : inv.schemeType === 'SCSS' ? (
                     <div>
-                      <strong className="table-payout-text">₹ {formatCurrency(inv.quarterlyPayout)}</strong>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>per quarter</div>
+                      <strong className="table-payout-text" style={{ color: 'var(--color-gold-dark)' }}>
+                        ₹ {formatCurrency(inv.quarterlyPayout || inv.expectedQuarterlyInterest || 0)}
+                      </strong>
+                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>per quarter</div>
                     </div>
                   ) : inv.maturityAmount ? (
                     <div>
-                      <strong className="table-payout-text">₹ {formatCurrency(inv.maturityAmount)}</strong>
-                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>at maturity</div>
+                      <strong className="table-payout-text" style={{ color: 'var(--color-navy)' }}>
+                        ₹ {formatCurrency(inv.maturityAmount)}
+                      </strong>
+                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>at maturity</div>
                     </div>
                   ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Maturity Return</span>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Government return</span>
                   )}
                 </td>
                 <td>

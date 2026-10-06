@@ -1,37 +1,73 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
-import type { FilterType, SortType, ViewMode } from '../types';
-import { calculateFDValues, formatCurrency } from '../utils/calculations';
-import { getMaturityClassification } from '../utils/maturityColorMap';
+import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
+import { getFdStatus, getNextMaturityInfo } from '../utils/fdUiHelpers';
 import { FdCard } from '../components/FdCard';
-import { FdTable } from '../components/FdTable';
+import { FdDetailsPanel } from '../components/FdDetailsPanel';
+import { FdFilterPopover, type FdFilterState } from '../components/FdFilterPopover';
 import {
-  PlusCircle,
+  Plus,
   Search,
   X,
+  Landmark,
   LayoutGrid,
-  Table as TableIcon,
-  HelpCircle,
-  Landmark
+  List as ListIcon
 } from 'lucide-react';
 
-export const FdDashboardPage: React.FC = () => {
+interface FdDashboardPageProps {
+  onShowToast?: (msg: string, type?: 'success' | 'info' | 'warn') => void;
+}
+
+export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const { activeMember } = useInvestments();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [sort, setSort] = useState<SortType>('maturity-asc');
-  const [search, setSearch] = useState('');
-  const [showColorMapLegend, setShowColorMapLegend] = useState(false);
-
-  // Only active FDs are displayed in the current investment section
+  // Active (non-redeemed) FDs
   const rawFds = useMemo(() => {
-    return (activeMember?.fds || []).filter((f) => !f.status || f.status === 'active');
+    return (activeMember?.fds || []).filter((f) => !f.actualEndDate && f.status !== 'redeemed');
   }, [activeMember?.fds]);
 
-  // Summary Metrics calculations
+  // Selected FD for Slide-over Details Panel
+  const [selectedFdId, setSelectedFdId] = useState<string | null>(null);
+
+  // Search query
+  const [search, setSearch] = useState('');
+
+  // View mode: Cards vs List
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+
+  // Unified compact filter state
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FdFilterState>({
+    bank: 'all',
+    status: 'all',
+    amountRange: 'all',
+    maturityRange: 'all',
+    rateRange: 'all'
+  });
+
+  const handleResetFilters = () => {
+    setFilters({
+      bank: 'all',
+      status: 'all',
+      amountRange: 'all',
+      maturityRange: 'all',
+      rateRange: 'all'
+    });
+    setSearch('');
+  };
+
+  // Distinct banks for filter dropdown
+  const availableBanks = useMemo(() => {
+    const set = new Set<string>();
+    rawFds.forEach((f) => {
+      if (f.bankName && f.bankName.trim()) set.add(f.bankName.trim());
+    });
+    return Array.from(set).sort();
+  }, [rawFds]);
+
+  // 1. Compact Overview: Total FD Value
   const totalPrincipal = useMemo(() => {
     return rawFds.reduce((sum, f) => sum + (Number(f.principal) || 0), 0);
   }, [rawFds]);
@@ -57,8 +93,13 @@ export const FdDashboardPage: React.FC = () => {
     };
   }, [rawFds, totalPrincipal]);
 
-  // Filter and Sort FDs
-  const processedFds = useMemo(() => {
+  // 2. Compact Overview: Next Maturity
+  const nextMaturity = useMemo(() => {
+    return getNextMaturityInfo(rawFds);
+  }, [rawFds]);
+
+  // Filtered FDs
+  const filteredFds = useMemo(() => {
     let list = [...rawFds];
 
     // Search filter
@@ -71,308 +112,314 @@ export const FdDashboardPage: React.FC = () => {
       );
     }
 
-    // Filter pills
-    if (filter === 'urgent') {
-      list = list.filter((f) => getMaturityClassification(f.maturityDate).level === 1);
-    } else if (filter === 'this-year') {
-      list = list.filter((f) => getMaturityClassification(f.maturityDate).level <= 3);
-    } else if (filter === 'over-year') {
-      list = list.filter((f) => getMaturityClassification(f.maturityDate).level >= 4);
-    } else if (filter === 'with-photo') {
-      list = list.filter((f) => Boolean(f.photoUrl));
+    // Bank filter
+    if (filters.bank !== 'all') {
+      list = list.filter((f) => f.bankName.toLowerCase() === filters.bank.toLowerCase());
     }
 
-    // Sorting
-    list.sort((a, b) => {
-      if (sort === 'maturity-asc') {
-        return new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime();
-      } else if (sort === 'maturity-desc') {
-        return new Date(b.maturityDate).getTime() - new Date(a.maturityDate).getTime();
-      } else if (sort === 'amount-desc') {
-        return (Number(b.principal) || 0) - (Number(a.principal) || 0);
-      } else if (sort === 'amount-asc') {
-        return (Number(a.principal) || 0) - (Number(b.principal) || 0);
-      } else if (sort === 'rate-desc') {
-        return (Number(b.interestRate) || 0) - (Number(a.interestRate) || 0);
-      } else if (sort === 'bank-asc') {
-        return a.bankName.localeCompare(b.bankName);
-      } else if (sort === 'tenure-asc') {
-        const tA = new Date(a.maturityDate).getTime() - new Date(a.startDate).getTime();
-        const tB = new Date(b.maturityDate).getTime() - new Date(b.startDate).getTime();
-        return tA - tB;
-      }
-      return 0;
-    });
+    // Status filter
+    if (filters.status !== 'all') {
+      list = list.filter((f) => {
+        const st = getFdStatus(f.maturityDate, f.actualEndDate, f.status);
+        if (filters.status === 'safe') return st.type === 'safe';
+        if (filters.status === 'approaching') return st.type === 'approaching';
+        if (filters.status === 'due') return st.type === 'due' || st.type === 'overdue';
+        return true;
+      });
+    }
+
+    // Amount range filter
+    if (filters.amountRange !== 'all') {
+      list = list.filter((f) => {
+        const amt = Number(f.principal) || 0;
+        if (filters.amountRange === 'under_1l') return amt < 100000;
+        if (filters.amountRange === '1l_5l') return amt >= 100000 && amt <= 500000;
+        if (filters.amountRange === '5l_10l') return amt > 500000 && amt <= 1000000;
+        if (filters.amountRange === 'above_10l') return amt > 1000000;
+        return true;
+      });
+    }
+
+    // Maturity schedule filter
+    if (filters.maturityRange !== 'all') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      list = list.filter((f) => {
+        if (!f.maturityDate) return false;
+        const mat = new Date(f.maturityDate);
+        mat.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((mat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (filters.maturityRange === 'next_30d') return diffDays <= 30;
+        if (filters.maturityRange === 'next_90d') return diffDays <= 90;
+        if (filters.maturityRange === 'next_180d') return diffDays <= 180;
+        if (filters.maturityRange === 'next_365d') return diffDays <= 365;
+        if (filters.maturityRange === 'over_1y') return diffDays > 365;
+        return true;
+      });
+    }
+
+    // Interest rate filter
+    if (filters.rateRange !== 'all') {
+      list = list.filter((f) => {
+        const rate = Number(f.interestRate) || 0;
+        if (filters.rateRange === 'above_7_5') return rate >= 7.5;
+        if (filters.rateRange === '7_to_7_5') return rate >= 7.0 && rate < 7.5;
+        if (filters.rateRange === 'under_7') return rate < 7.0;
+        return true;
+      });
+    }
+
+    // Sort earliest maturity first by default
+    list.sort((a, b) => new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime());
 
     return list;
-  }, [rawFds, search, filter, sort]);
+  }, [rawFds, search, filters]);
+
+  const selectedFd = useMemo(() => {
+    if (!selectedFdId) return null;
+    return rawFds.find((f) => f.id === selectedFdId) || null;
+  }, [rawFds, selectedFdId]);
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    filters.bank !== 'all' ||
+    filters.status !== 'all' ||
+    filters.amountRange !== 'all' ||
+    filters.maturityRange !== 'all' ||
+    filters.rateRange !== 'all';
+
+  const toastHandler = onShowToast || ((_msg, _type) => {});
 
   return (
-    <div className="main-content fade-in">
-      {/* Header & Breadcrumbs */}
-      <div className="fd-header-area">
+    <div className="main-content fade-in" style={{ maxWidth: '1240px', margin: '0 auto', paddingBottom: '48px' }}>
+      {/* 1. Header: “Fixed Deposits” + primary “+ Add FD” button */}
+      <div className="fd-executive-header">
         <div>
-          <nav className="breadcrumb-nav">
-            <span className="breadcrumb-link" onClick={() => navigate('/home')}>
-              Portfolio Overview
+          <div className="fd-breadcrumb-text">
+            <span onClick={() => navigate('/home')} className="fd-breadcrumb-link">
+              Portfolio
             </span>
             <span>/</span>
-            <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>Fixed Deposits</span>
-          </nav>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text-main)', marginTop: '4px' }}>
-            Fixed Deposits Dashboard
-          </h1>
-          <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Viewing active deposits for <strong>{activeMember?.name}</strong> ({activeMember?.role})
+            <span>Fixed Deposits</span>
+          </div>
+          <h1 className="fd-page-title">Fixed Deposits</h1>
+          <p className="fd-page-subtitle">
+            Active deposits for {activeMember?.name || 'User'}
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowColorMapLegend(!showColorMapLegend)}
-            title="Explain Maturity Colour Map"
-          >
-            <HelpCircle size={16} />
-            <span>Maturity Colour Map</span>
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => navigate('/add-fd')}
-          >
-            <PlusCircle size={18} />
-            <span>Add Fixed Deposit</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn btn-primary fd-primary-add-btn"
+          onClick={() => navigate('/add-fd')}
+        >
+          <Plus size={16} />
+          <span>Add FD</span>
+        </button>
       </div>
 
-      {/* Colour Map Legend Card (Toggleable) */}
-      {showColorMapLegend && (
-        <div className="card-panel" style={{ padding: '20px', marginBottom: '24px', background: '#F8FAFC' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <strong style={{ fontSize: '14px', color: 'var(--text-main)' }}>
-              FD Maturity Urgency Colour Map:
-            </strong>
-            <button className="btn btn-subtle btn-sm" onClick={() => setShowColorMapLegend(false)}>
-              <X size={16} />
-            </button>
+      {/* 2. Compact Overview: Total FD Value, Active FDs, Next Maturity */}
+      <div className="fd-overview-grid">
+        {/* Card 1: Total FD Value */}
+        <div className="fd-overview-card">
+          <span className="fd-overview-kicker">Total FD Value</span>
+          <div className="fd-overview-value">
+            <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
+            {formatCurrency(totalPrincipal)}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '12px' }}>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-urgent-bg)', borderLeft: '4px solid var(--shade-urgent)', color: 'var(--shade-urgent)', fontSize: '12px', fontWeight: 700 }}>
-              ● &lt; 3 Months (Urgent / Darkest)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-near-bg)', borderLeft: '4px solid var(--shade-near)', color: 'var(--shade-near)', fontSize: '12px', fontWeight: 700 }}>
-              ● 3 – 6 Months (Near Term)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-medium-bg)', borderLeft: '4px solid var(--shade-medium)', color: 'var(--shade-medium)', fontSize: '12px', fontWeight: 700 }}>
-              ● 6 – 12 Months (Medium Term)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-light-bg)', borderLeft: '4px solid var(--shade-light)', color: 'var(--shade-light)', fontSize: '12px', fontWeight: 700 }}>
-              ● 1 – 2 Years (Extended)
-            </div>
-            <div style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', background: 'var(--shade-lightest-bg)', borderLeft: '4px solid var(--shade-lightest)', color: 'var(--shade-lightest)', fontSize: '12px', fontWeight: 700 }}>
-              ● &gt; 2 Years (Calm Sky Slate)
-            </div>
+          <div className="fd-overview-sub">
+            +₹ {formatCurrency(totalInterestGain)} returns · Matures to ₹ {formatCurrency(totalMaturityPayout)}
           </div>
         </div>
-      )}
 
-      {/* FD Top Summary Stats Grid */}
-      <div className="fd-summary-stats-grid">
-        <div className="stat-metric-card highlight">
-          <span className="stat-kicker">Total Value of all FDs</span>
-          <span className="stat-number" style={{ color: 'var(--brand-primary)' }}>
-            ₹ {formatCurrency(totalPrincipal)}
-          </span>
-          <span className="stat-subtext">{rawFds.length} Active {rawFds.length === 1 ? 'Deposit' : 'Deposits'}</span>
+        {/* Card 2: Active FDs */}
+        <div className="fd-overview-card">
+          <span className="fd-overview-kicker">Active FDs</span>
+          <div className="fd-overview-value">
+            {rawFds.length}
+            <span className="fd-overview-unit">Deposits</span>
+          </div>
+          <div className="fd-overview-sub">
+            Weighted avg: {avgInterestRate}% p.a. yield
+          </div>
         </div>
 
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Expected Maturity Payout</span>
-          <span className="stat-number">₹ {formatCurrency(totalMaturityPayout)}</span>
-          <span className="stat-subtext">Compounded quarterly</span>
-        </div>
-
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Total Interest Earned</span>
-          <span className="stat-number" style={{ color: 'var(--color-emerald)' }}>
-            +₹ {formatCurrency(totalInterestGain)}
-          </span>
-          <span className="stat-subtext">Guaranteed returns</span>
-        </div>
-
-        <div className="stat-metric-card">
-          <span className="stat-kicker">Weighted Avg Rate</span>
-          <span className="stat-number">{avgInterestRate}%</span>
-          <span className="stat-subtext">per annum yield</span>
-        </div>
-      </div>
-
-      {/* Controls Bar: Search, Filters, Sorting, and View Switcher */}
-      <div className="fd-controls-bar">
-        <div className="controls-top-row">
-          {/* Search box */}
-          <div className="search-box-wrapper">
-            <Search size={18} className="search-icon" />
-            <input
-              type="text"
-              className="form-input search-input"
-              placeholder="Search by bank name or account number..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                type="button"
-                className="btn btn-subtle btn-sm"
-                style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', padding: '4px' }}
-                onClick={() => setSearch('')}
-              >
-                <X size={16} />
-              </button>
+        {/* Card 3: Next Maturity */}
+        <div className="fd-overview-card">
+          <span className="fd-overview-kicker">Next Maturity</span>
+          <div className="fd-overview-value" style={{ fontSize: nextMaturity.dateStr ? '22px' : '26px' }}>
+            {nextMaturity.dateStr ? formatDate(nextMaturity.dateStr) : 'None'}
+          </div>
+          <div className="fd-overview-sub">
+            {nextMaturity.status ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    backgroundColor: nextMaturity.status.dotColor
+                  }}
+                />
+                <span style={{ color: nextMaturity.status.textColor, fontWeight: 600 }}>
+                  {nextMaturity.daysLeft !== null && nextMaturity.daysLeft >= 0
+                    ? `In ${nextMaturity.daysLeft} days (${nextMaturity.status.label})`
+                    : nextMaturity.status.label}
+                </span>
+              </span>
+            ) : (
+              'No upcoming dates'
             )}
           </div>
-
-          <div className="controls-right-actions">
-            {/* Sorting Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <label htmlFor="fdSortSelect" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                Sort:
-              </label>
-              <select
-                id="fdSortSelect"
-                className="form-select"
-                style={{ width: 'auto', minWidth: '180px', padding: '8px 12px' }}
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortType)}
-              >
-                <option value="maturity-asc">Maturity: Earliest First</option>
-                <option value="maturity-desc">Maturity: Latest First</option>
-                <option value="amount-desc">Amount: Highest First</option>
-                <option value="amount-asc">Amount: Lowest First</option>
-                <option value="rate-desc">Interest Rate: Highest First</option>
-                <option value="bank-asc">Bank Name: A to Z</option>
-                <option value="tenure-asc">Tenure: Shortest First</option>
-              </select>
-            </div>
-
-            {/* View Mode Toggle: Cards vs Table */}
-            <div className="view-toggle-group">
-              <button
-                type="button"
-                className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
-                onClick={() => setViewMode('cards')}
-                title="Cards View"
-              >
-                <LayoutGrid size={16} />
-                <span>Cards</span>
-              </button>
-              <button
-                type="button"
-                className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
-                onClick={() => setViewMode('table')}
-                title="Table View"
-              >
-                <TableIcon size={16} />
-                <span>Table</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Pills */}
-        <div className="filter-pills-row">
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>Filter:</span>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'all' ? 'active' : ''}`}
-            onClick={() => setFilter('all')}
-          >
-            All FDs ({rawFds.length})
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'urgent' ? 'active' : ''}`}
-            onClick={() => setFilter('urgent')}
-          >
-            ● &lt; 3 Months (Urgent)
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'this-year' ? 'active' : ''}`}
-            onClick={() => setFilter('this-year')}
-          >
-            Maturing in 2026 / 1 Year
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'over-year' ? 'active' : ''}`}
-            onClick={() => setFilter('over-year')}
-          >
-            Long Term (&gt; 1 Year)
-          </button>
-          <button
-            type="button"
-            className={`filter-pill ${filter === 'with-photo' ? 'active' : ''}`}
-            onClick={() => setFilter('with-photo')}
-          >
-            📷 With Certificate
-          </button>
         </div>
       </div>
 
-      {/* Main List Render: Cards or Table */}
-      {processedFds.length === 0 ? (
-        <div className="fd-empty-state">
-          <div className="empty-state-icon">
-            <Landmark size={36} color="var(--brand-primary)" />
-          </div>
-          <h3 className="empty-state-title">No Fixed Deposits Found</h3>
-          <p className="empty-state-desc">
-            {search || filter !== 'all'
-              ? 'No deposits match your search or filter criteria. Try clearing filters.'
-              : `There are no fixed deposits recorded for ${activeMember?.name}. Click below to add the first one!`}
-          </p>
-          {search || filter !== 'all' ? (
+      {/* 3. Controls Bar: Compact Search + Unified Filter Control + View Switcher */}
+      <div className="fd-toolbar-container">
+        {/* Left: Search input */}
+        <div className="fd-search-wrapper">
+          <Search size={16} className="fd-search-icon" />
+          <input
+            type="text"
+            className="fd-search-input"
+            placeholder="Search by bank or account..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setSearch('');
-                setFilter('all');
-              }}
+              className="fd-search-clear-btn"
+              onClick={() => setSearch('')}
+              title="Clear search"
             >
-              Clear Filters
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        {/* Right: Unified compact Filter popover + View toggle */}
+        <div className="fd-toolbar-actions">
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="fd-toolbar-reset-link"
+            >
+              Clear filters
+            </button>
+          )}
+
+          {/* Compact Filter Control */}
+          <FdFilterPopover
+            isOpen={isFilterOpen}
+            onToggle={() => setIsFilterOpen(!isFilterOpen)}
+            onClose={() => setIsFilterOpen(false)}
+            filters={filters}
+            onChange={setFilters}
+            onReset={handleResetFilters}
+            availableBanks={availableBanks}
+          />
+
+          {/* Cards vs List Switcher */}
+          <div className="fd-view-toggle">
+            <button
+              type="button"
+              onClick={() => setViewMode('cards')}
+              className={`fd-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              title="Grid View"
+            >
+              <LayoutGrid size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`fd-view-btn ${viewMode === 'list' ? 'active' : ''}`}
+              title="List View"
+            >
+              <ListIcon size={15} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Main Area: Clean FD Cards or List / Empty State */}
+      {filteredFds.length === 0 ? (
+        <div className="fd-empty-container">
+          <div className="fd-empty-icon-circle">
+            <Landmark size={28} color="#0F172A" />
+          </div>
+          <h3 className="fd-empty-title">
+            {hasActiveFilters ? 'No Matching Fixed Deposits' : 'No FDs yet'}
+          </h3>
+          <p className="fd-empty-subtitle">
+            {hasActiveFilters
+              ? 'No deposits matched the active filter criteria. Try resetting filters.'
+              : 'Add your first fixed deposit to start tracking principal and maturity dates.'}
+          </p>
+
+          {hasActiveFilters ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handleResetFilters}
+            >
+              Reset Filters
             </button>
           ) : (
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary fd-primary-add-btn"
               onClick={() => navigate('/add-fd')}
             >
-              <PlusCircle size={18} />
-              <span>Add Fixed Deposit Now</span>
+              <Plus size={16} />
+              <span>Add FD</span>
             </button>
           )}
         </div>
       ) : viewMode === 'cards' ? (
-        <div className="fd-cards-grid">
-          {processedFds.map((fd) => (
+        <div className="fd-grid-layout">
+          {filteredFds.map((fd) => (
             <FdCard
               key={fd.id}
               fd={fd}
-              onClick={() => navigate(`/fds/${fd.id}`)}
+              isSelected={selectedFdId === fd.id}
+              onClick={() => setSelectedFdId(fd.id)}
             />
           ))}
         </div>
       ) : (
-        <FdTable
-          fds={processedFds}
-          onSelectFd={(id) => navigate(`/fds/${id}`)}
-        />
+        <div className="fd-list-layout">
+          {filteredFds.map((fd) => (
+            <FdCard
+              key={fd.id}
+              fd={fd}
+              isSelected={selectedFdId === fd.id}
+              onClick={() => setSelectedFdId(fd.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 5. Slide-over Details Panel (Opens when card is clicked) */}
+      {selectedFd && (
+        <div className="fd-drawer-backdrop fade-in" onClick={() => setSelectedFdId(null)}>
+          <div
+            className="fd-drawer-sheet"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            <FdDetailsPanel
+              fd={selectedFd}
+              onClose={() => setSelectedFdId(null)}
+              onShowToast={toastHandler}
+              isDrawer={true}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import React from 'react';
 import type { BullionInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
-import { BULLION_METADATA, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
-import { AlertCircle, Calendar, Scale, Image as ImageIcon, ChevronRight } from 'lucide-react';
+import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getDeadlineClassification } from '../utils/deadlinesColorMap';
+import { AlertCircle, Calendar, Scale, Image as ImageIcon, ChevronRight, Clock } from 'lucide-react';
 
 interface BullionCardProps {
   investment: BullionInvestment;
@@ -12,13 +13,8 @@ interface BullionCardProps {
 export const BullionCard: React.FC<BullionCardProps> = ({ investment, onClick }) => {
   const isComplete = hasSufficientValue(investment);
   const effectiveValue = getEffectiveBullionValue(investment);
-  const meta = BULLION_METADATA[investment.type] || {
-    name: investment.typeName || 'Other',
-    icon: '💎',
-    color: '#7C3AED',
-    badgeBg: '#F3E8FF',
-    description: 'Precious Metals'
-  };
+  const meta = getBullionMetadata(investment.typeName || investment.type);
+  const deadline = investment.paymentDueDate ? getDeadlineClassification(investment.paymentDueDate) : null;
 
   return (
     <div
@@ -85,7 +81,7 @@ export const BullionCard: React.FC<BullionCardProps> = ({ investment, onClick })
               <span className="card-principal-val">₹ {formatCurrency(effectiveValue)}</span>
               {investment.purchaseRate && (
                 <span className="card-payout-text" style={{ color: 'var(--text-secondary)' }}>
-                  @ ₹{formatCurrency(investment.purchaseRate)} / gram
+                  @ ₹{formatCurrency(investment.purchaseRate)} {investment.weightUnit ? `/ ${investment.weightUnit}` : ''}
                 </span>
               )}
             </>
@@ -121,6 +117,54 @@ export const BullionCard: React.FC<BullionCardProps> = ({ investment, onClick })
             </div>
           )}
         </div>
+
+        {/* Payment Due Date Colour Map Strip */}
+        {investment.paymentDueDate && (
+          <div
+            style={{
+              gridColumn: '1 / -1',
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-sm)',
+              background: deadline?.bgTint || '#EFF6FF',
+              border: `1px solid ${deadline?.borderTint || '#BFDBFE'}`,
+              color: deadline?.textDark || '#1E40AF',
+              fontSize: '11px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+              marginTop: '4px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {deadline?.isOverdue ? (
+                <AlertCircle size={13} style={{ flexShrink: 0, color: '#DC2626' }} />
+              ) : (
+                <Clock size={13} style={{ flexShrink: 0, color: deadline?.hexColor || '#2563EB' }} />
+              )}
+              <span>
+                <strong>Balance Due:</strong>{' '}
+                ₹ {formatCurrency(investment.remainingPayment !== undefined ? investment.remainingPayment : effectiveValue)} by{' '}
+                <strong>{formatDate(investment.paymentDueDate)}</strong>
+              </span>
+            </div>
+            {deadline && (
+              <span
+                style={{
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  background: deadline.hexColor,
+                  color: '#FFFFFF',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {deadline.relativeText}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="fd-card-foot">

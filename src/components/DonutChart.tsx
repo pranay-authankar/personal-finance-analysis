@@ -2,24 +2,22 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PortfolioSummary } from '../types';
 import { formatCurrency } from '../utils/calculations';
-import { ArrowRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 interface CategoryConfig {
   id: keyof PortfolioSummary['breakdown'];
   name: string;
-  icon: string;
   color: string;
-  isFunctional: boolean;
   route?: string;
 }
 
 const CATEGORIES: CategoryConfig[] = [
-  { id: 'fds', name: 'Fixed Deposits (FDs)', icon: '🏦', color: '#2563EB', isFunctional: true, route: '/fds' },
-  { id: 'postOffice', name: 'Post Office', icon: '📮', color: '#EA580C', isFunctional: true, route: '/post-office' },
-  { id: 'bullions', name: 'Bullions (Gold/Silver)', icon: '🪙', color: '#D97706', isFunctional: true, route: '/bullions' },
-  { id: 'stocksMf', name: 'Stocks & MFs', icon: '📈', color: '#059669', isFunctional: false },
-  { id: 'realEstate', name: 'Real Estate', icon: '🏡', color: '#7C3AED', isFunctional: false },
-  { id: 'realizedFunds', name: 'Realized Funds', icon: '💰', color: '#0D9488', isFunctional: true, route: '/realized-funds' }
+  { id: 'realEstate', name: 'Real Estate', color: '#0F1E36', route: '/real-estate' },
+  { id: 'fds', name: 'Fixed Deposits', color: '#334155', route: '/fds' },
+  { id: 'bullions', name: 'Bullions', color: '#B58924', route: '/bullions' },
+  { id: 'postOffice', name: 'Post Office', color: '#A16207', route: '/post-office' },
+  { id: 'stocksMf', name: 'Stocks & MF', color: '#64748B' },
+  { id: 'realizedFunds', name: 'Realized Funds', color: '#0F766E', route: '/realized-funds' }
 ];
 
 interface DonutChartProps {
@@ -40,10 +38,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
   };
   const total = portfolio.total || 0;
 
-  const radius = 78;
+  const radius = 86;
   const circumference = 2 * Math.PI * radius;
 
-  // Compute items with percentages
+  // Filter items with values
   const chartItems = CATEGORIES.map((cat) => {
     const val = breakdown[cat.id] || 0;
     const pct = total > 0 ? (val / total) * 100 : 0;
@@ -65,26 +63,41 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
     };
   });
 
-  const activeCategory = hoveredCategory || CATEGORIES[0];
-  const activeValue = breakdown[activeCategory.id] || 0;
-  const activePct = total > 0 ? ((activeValue / total) * 100).toFixed(1) : '0';
+  const activeCategory = hoveredCategory;
+  const activeValue = activeCategory ? (breakdown[activeCategory.id] || 0) : total;
+  const activePct = activeCategory
+    ? (total > 0 ? ((activeValue / total) * 100).toFixed(1) : '0')
+    : '100';
 
   return (
-    <div className="chart-layout-grid">
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(240px, 280px) 1fr',
+        gap: '32px',
+        alignItems: 'center'
+      }}
+      className="dashboard-donut-wrap"
+    >
       {/* SVG Donut Visual */}
-      <div className="donut-visual-container">
-        <svg className="donut-svg" viewBox="0 0 240 240">
+      <div style={{ position: 'relative', width: '240px', height: '240px', margin: '0 auto' }}>
+        <svg
+          viewBox="0 0 240 240"
+          style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)', overflow: 'visible' }}
+        >
+          {/* Base track circle */}
           <circle
             cx="120"
             cy="120"
             r={radius}
             fill="none"
-            stroke="#F1F5F9"
-            strokeWidth="22"
+            stroke="var(--border-light)"
+            strokeWidth="20"
           />
 
           {slices.map((slice) => {
             if (slice.value <= 0) return null;
+            const isHovered = hoveredCategory?.id === slice.id;
             return (
               <circle
                 key={slice.id}
@@ -93,11 +106,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
                 r={radius}
                 fill="none"
                 stroke={slice.color}
-                strokeWidth={hoveredCategory?.id === slice.id ? 26 : 20}
+                strokeWidth={isHovered ? 26 : 20}
                 strokeDasharray={`${slice.sliceLength} ${slice.strokeGap}`}
                 strokeDashoffset={-slice.offset}
                 strokeLinecap="butt"
-                className="donut-slice-path"
                 onMouseEnter={() => setHoveredCategory(slice)}
                 onMouseLeave={() => setHoveredCategory(null)}
                 onClick={() => {
@@ -105,61 +117,148 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
                 }}
                 style={{
                   cursor: slice.route ? 'pointer' : 'default',
-                  transition: 'stroke-width 0.2s ease, opacity 0.2s ease',
-                  opacity: hoveredCategory && hoveredCategory.id !== slice.id ? 0.6 : 1
+                  transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                  opacity: hoveredCategory && !isHovered ? 0.45 : 1
                 }}
               />
             );
           })}
         </svg>
 
-        <div className="donut-center-info">
-          <span className="donut-center-name">{activeCategory.name.split(' (')[0]}</span>
-          <div className="donut-center-value">₹ {formatCurrency(activeValue)}</div>
-          <div className="donut-center-pct">{activePct}% of Total</div>
+        {/* Center Information */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            pointerEvents: 'none',
+            padding: '16px'
+          }}
+        >
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 700,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: activeCategory ? activeCategory.color : 'var(--color-charcoal-muted)',
+              marginBottom: '3px',
+              transition: 'color 0.2s ease'
+            }}
+          >
+            {activeCategory ? activeCategory.name : 'Total Allocation'}
+          </span>
+          <div
+            style={{
+              fontSize: '18px',
+              fontWeight: 800,
+              color: 'var(--color-navy)',
+              letterSpacing: '-0.02em',
+              lineHeight: 1.2
+            }}
+          >
+            ₹ {formatCurrency(activeValue)}
+          </div>
+          <span
+            style={{
+              fontSize: '12px',
+              fontWeight: 700,
+              color: 'var(--color-charcoal-muted)',
+              marginTop: '2px'
+            }}
+          >
+            {activePct}%
+          </span>
         </div>
       </div>
 
-      {/* Category Tiles Grid */}
-      <div className="category-cards-grid">
+      {/* Clean Category Breakdown Legend */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {CATEGORIES.map((cat) => {
           const val = breakdown[cat.id] || 0;
           const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0';
+          const isHovered = hoveredCategory?.id === cat.id;
 
           return (
             <div
               key={cat.id}
-              className={`category-tile ${cat.isFunctional ? 'clickable' : ''}`}
-              style={{ '--cat-color': cat.color } as React.CSSProperties}
               onMouseEnter={() => setHoveredCategory(cat)}
               onMouseLeave={() => setHoveredCategory(null)}
               onClick={() => {
                 if (cat.route) navigate(cat.route);
               }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                background: isHovered ? 'var(--bg-surface-soft)' : 'transparent',
+                cursor: cat.route ? 'pointer' : 'default',
+                transition: 'background 0.15s ease',
+                border: isHovered ? '1px solid var(--border-card)' : '1px solid transparent'
+              }}
             >
-              <div className="category-tile-head">
-                <div className="category-icon-title">
-                  <span className="category-icon">{cat.icon}</span>
-                  <span className="category-title">{cat.name}</span>
-                </div>
-                {cat.isFunctional ? (
-                  <span className="category-badge-pill badge-active-v1">Active</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    background: cat.color,
+                    flexShrink: 0
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: isHovered ? 700 : 600,
+                    color: 'var(--color-charcoal-dark)'
+                  }}
+                >
+                  {cat.name}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: 'var(--color-charcoal-muted)',
+                    minWidth: '38px',
+                    textAlign: 'right'
+                  }}
+                >
+                  {pct}%
+                </span>
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: 'var(--color-navy)',
+                    minWidth: '95px',
+                    textAlign: 'right'
+                  }}
+                >
+                  ₹ {formatCurrency(val)}
+                </span>
+                {cat.route ? (
+                  <ChevronRight
+                    size={14}
+                    style={{
+                      color: isHovered ? 'var(--color-navy)' : 'var(--border-medium)',
+                      transition: 'color 0.15s ease'
+                    }}
+                  />
                 ) : (
-                  <span className="category-badge-pill badge-v2-placeholder">V2 Planned</span>
+                  <span style={{ width: '14px' }} />
                 )}
               </div>
-
-              <div className="category-amount-row">
-                <span className="category-amount-val">₹ {formatCurrency(val)}</span>
-                <span className="category-pct-val">{pct}%</span>
-              </div>
-
-              {cat.isFunctional && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600, marginTop: '4px' }}>
-                  <span>Open {cat.name.split(' (')[0]} Section</span>
-                  <ArrowRight size={14} />
-                </div>
-              )}
             </div>
           );
         })}
@@ -167,3 +266,4 @@ export const DonutChart: React.FC<DonutChartProps> = ({ portfolio }) => {
     </div>
   );
 };
+

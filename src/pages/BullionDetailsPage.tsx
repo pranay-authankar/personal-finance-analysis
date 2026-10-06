@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency, formatDate } from '../utils/calculations';
-import { BULLION_METADATA, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { PhotoModal } from '../components/PhotoModal';
 import { RealizeAssetModal } from '../components/RealizeAssetModal';
 import {
@@ -15,7 +16,8 @@ import {
   FileText,
   Image as ImageIcon,
   ZoomIn,
-  Wallet
+  Wallet,
+  Clock
 } from 'lucide-react';
 
 interface BullionDetailsPageProps {
@@ -47,13 +49,8 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
 
   const isComplete = hasSufficientValue(b);
   const effectiveValue = getEffectiveBullionValue(b);
-  const meta = BULLION_METADATA[b.type] || {
-    name: b.typeName,
-    icon: '💎',
-    color: '#7C3AED',
-    badgeBg: '#F3E8FF',
-    description: 'Precious Assets'
-  };
+  const meta = getBullionMetadata(b.typeName || b.type);
+  const deadline = b.paymentDueDate ? getDeadlineClassification(b.paymentDueDate) : null;
 
   const handleDelete = () => {
     if (window.confirm(`Are you sure you want to delete this ${b.itemName} holding?`)) {
@@ -243,23 +240,87 @@ export const BullionDetailsPage: React.FC<BullionDetailsPageProps> = ({ onShowTo
             <div className="details-metric-item">
               <span className="val-kicker">Weight / Quantity</span>
               <div className="details-metric-val">
-                {b.weightDisplay || (b.weightGrams ? `${b.weightGrams} grams` : 'Unspecified')}
+                {b.weightDisplay || (b.weight ? `${b.weight} ${b.weightUnit || 'g'}` : b.weightGrams ? `${b.weightGrams} grams` : 'Unspecified')}
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {b.weightGrams ? `${b.weightGrams} grams net weight` : 'Physical quantity'}
+                {b.weightGrams ? `${b.weightGrams.toLocaleString()}g standardized weight` : 'Physical quantity'}
               </span>
             </div>
 
             <div className="details-metric-item">
-              <span className="val-kicker">Purchase Rate</span>
+              <span className="val-kicker">Rate in Rupees</span>
               <div className="details-metric-val">
-                {b.purchaseRate ? `₹ ${formatCurrency(b.purchaseRate)} /g` : 'Unrecorded'}
+                {b.purchaseRate ? `₹ ${formatCurrency(b.purchaseRate)} ${b.weightUnit ? `/ ${b.weightUnit}` : ''}` : 'Unrecorded'}
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {b.purchaseRate ? `₹ ${formatCurrency(b.purchaseRate * 10)} per 10 grams` : 'Acquisition rate per gram'}
+                {b.purchaseRate ? `Rate in Rupees per ${b.weightUnit || 'unit'}` : 'Acquisition rate in Rupees'}
               </span>
             </div>
           </div>
+
+          {/* Payment & Due Date Urgency Card */}
+          {(b.paymentDueDate || (b.initialPayment !== undefined && b.initialPayment > 0)) && (
+            <div
+              style={{
+                border: `1px solid ${deadline ? deadline.borderTint : 'var(--border-light)'}`,
+                borderRadius: 'var(--radius-md)',
+                padding: '20px',
+                background: deadline ? deadline.bgTint : '#F8FAFC',
+                marginBottom: '28px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {deadline?.isOverdue ? (
+                    <AlertCircle size={20} color="#DC2626" />
+                  ) : (
+                    <Clock size={20} color={deadline?.hexColor || '#2563EB'} />
+                  )}
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0, color: deadline?.textDark || 'var(--text-main)' }}>
+                    Payment &amp; Due Date Urgency Colour Map
+                  </h3>
+                </div>
+
+                {deadline && (
+                  <span
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 'var(--radius-full)',
+                      background: deadline.hexColor,
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                      fontWeight: 800
+                    }}
+                  >
+                    Level {deadline.level}: {deadline.label} ({deadline.relativeText})
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+                <div style={{ padding: '12px 14px', background: 'white', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <span className="val-kicker">Initial Payment Paid</span>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#16A34A', marginTop: '2px' }}>
+                    ₹ {formatCurrency(b.initialPayment || 0)}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 14px', background: 'white', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <span className="val-kicker">Remaining Balance Due</span>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: b.remainingPayment && b.remainingPayment > 0 ? (deadline?.isOverdue ? '#DC2626' : '#D97706') : '#16A34A', marginTop: '2px' }}>
+                    ₹ {formatCurrency(b.remainingPayment !== undefined ? b.remainingPayment : effectiveValue)}
+                  </div>
+                </div>
+
+                <div style={{ padding: '12px 14px', background: 'white', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <span className="val-kicker">Full Payment Deadline</span>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: deadline?.textDark || 'var(--text-main)', marginTop: '2px' }}>
+                    {b.paymentDueDate ? formatDate(b.paymentDueDate) : 'No due date set'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Timeline & Notes */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '28px' }}>

@@ -1,8 +1,9 @@
 import React from 'react';
 import type { BullionInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
-import { BULLION_METADATA, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
-import { AlertCircle, Image as ImageIcon } from 'lucide-react';
+import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
+import { getDeadlineClassification } from '../utils/deadlinesColorMap';
+import { AlertCircle, Image as ImageIcon, Clock } from 'lucide-react';
 
 interface BullionTableProps {
   investments: BullionInvestment[];
@@ -20,6 +21,7 @@ export const BullionTable: React.FC<BullionTableProps> = ({ investments, onSelec
             <th>Weight / Quantity</th>
             <th>Purchase Date</th>
             <th>Rate / Gram</th>
+            <th>Payment Due Date</th>
             <th>Status</th>
             <th>Receipt</th>
             <th>Action</th>
@@ -29,10 +31,8 @@ export const BullionTable: React.FC<BullionTableProps> = ({ investments, onSelec
           {investments.map((b) => {
             const isComplete = hasSufficientValue(b);
             const value = getEffectiveBullionValue(b);
-            const meta = BULLION_METADATA[b.type] || {
-              icon: '💎',
-              name: b.typeName
-            };
+            const meta = getBullionMetadata(b.typeName || b.type);
+            const deadline = b.paymentDueDate ? getDeadlineClassification(b.paymentDueDate) : null;
 
             return (
               <tr key={b.id} onClick={() => onSelect(b.id)}>
@@ -67,10 +67,34 @@ export const BullionTable: React.FC<BullionTableProps> = ({ investments, onSelec
                 <td>
                   {b.purchaseRate ? (
                     <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      ₹{formatCurrency(b.purchaseRate)} /g
+                      ₹{formatCurrency(b.purchaseRate)} {b.weightUnit ? `/${b.weightUnit}` : ''}
                     </span>
                   ) : (
                     <span style={{ color: 'var(--text-muted)' }}>-</span>
+                  )}
+                </td>
+                <td>
+                  {b.paymentDueDate && deadline ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        background: deadline.bgTint,
+                        border: `1px solid ${deadline.borderTint}`,
+                        color: deadline.textDark,
+                        fontSize: '11px',
+                        fontWeight: 700
+                      }}
+                      title={deadline.relativeText}
+                    >
+                      <Clock size={11} />
+                      <span>{formatDate(b.paymentDueDate)}</span>
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '12px', color: '#16A34A', fontWeight: 600 }}>Paid in Full</span>
                   )}
                 </td>
                 <td>
