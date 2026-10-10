@@ -10,6 +10,14 @@ import type { DeadlineClassification, PropertyType } from '../types';
  * 1. Property Purchase Payments (balance payments to be given to seller)
  * 2. Property Sale Receivables (payments to be received from buyers)
  */
+export const NO_DUE_DATE_CONFIG = {
+  label: 'No Due Date',
+  hexColor: '#7C3AED',
+  bgTint: '#F5F3FF',
+  borderTint: '#DDD6FE',
+  textDark: '#6D28D9'
+};
+
 export function getDeadlineClassification(deadlineDateStr?: string): DeadlineClassification | null {
   if (!deadlineDateStr) return null;
 

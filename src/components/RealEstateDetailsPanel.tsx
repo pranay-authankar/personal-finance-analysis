@@ -90,6 +90,14 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
   const isSold = property.property_status === 'SOLD';
   const price = Number(property.purchase_price) || 0;
   const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
+  const isPartialPaidNoDueDate =
+    !isSold &&
+    price > 0 &&
+    finances.totalPurchasePaid > 0 &&
+    finances.totalPurchasePaid < price &&
+    finances.paymentLeft > 0 &&
+    !finances.nextDueDate &&
+    !property.payment_deadline;
 
   const handleDelete = () => {
     if (
@@ -205,6 +213,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
               border: `1px solid ${
                 finances.paymentStatus === 'missed'
                   ? '#FCA5A5'
+                  : isPartialPaidNoDueDate
+                  ? '#DDD6FE'
                   : finances.paymentLeft > 0
                   ? '#CBD5E1'
                   : '#A7F3D0'
@@ -212,6 +222,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
               background:
                 finances.paymentStatus === 'missed'
                   ? '#FEF2F2'
+                  : isPartialPaidNoDueDate
+                  ? '#FAF5FF'
                   : finances.paymentLeft > 0
                   ? '#F8FAFC'
                   : '#ECFDF5',
@@ -227,6 +239,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                   color={
                     finances.paymentStatus === 'missed'
                       ? '#DC2626'
+                      : isPartialPaidNoDueDate
+                      ? '#7C3AED'
                       : finances.paymentLeft > 0
                       ? 'var(--color-navy)'
                       : '#059669'
@@ -241,6 +255,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                     color:
                       finances.paymentStatus === 'missed'
                         ? '#B91C1C'
+                        : isPartialPaidNoDueDate
+                        ? '#6D28D9'
                         : finances.paymentLeft > 0
                         ? 'var(--color-navy)'
                         : '#047857'
@@ -261,6 +277,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                       ? '#DC2626'
                       : finances.paymentLeft === 0
                       ? '#10B981'
+                      : isPartialPaidNoDueDate
+                      ? '#7C3AED'
                       : 'var(--color-navy)',
                   color: '#FFFFFF'
                 }}
@@ -269,6 +287,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                   ? 'Overdue'
                   : finances.paymentLeft === 0
                   ? '100% Paid'
+                  : isPartialPaidNoDueDate
+                  ? 'No Due Date Set'
                   : 'Pending Balance'}
               </span>
             </div>
@@ -288,7 +308,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-charcoal-muted)', textTransform: 'uppercase' }}>
                   Remaining Balance
                 </span>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: finances.paymentLeft > 0 ? '#B45309' : '#047857', marginTop: '2px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: isPartialPaidNoDueDate ? '#6D28D9' : finances.paymentLeft > 0 ? '#B45309' : '#047857', marginTop: '2px' }}>
                   ₹ {formatCurrency(finances.paymentLeft)}
                 </div>
               </div>
@@ -298,14 +318,28 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
             {finances.paymentLeft > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', paddingTop: '4px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-                  <Clock size={14} color="var(--color-charcoal-muted)" />
+                  <Clock size={14} color={isPartialPaidNoDueDate ? '#7C3AED' : 'var(--color-charcoal-muted)'} />
                   <span>
                     Deadline:{' '}
                     <strong>
-                      {finances.nextDueDate ? formatDate(finances.nextDueDate) : 'No deadline specified'}
+                      {finances.nextDueDate ? formatDate(finances.nextDueDate) : 'No due date specified'}
                     </strong>
                   </span>
-                  {deadlineClass && (
+                  {isPartialPaidNoDueDate ? (
+                    <span
+                      style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(124, 58, 237, 0.08)',
+                        border: '1px solid rgba(124, 58, 237, 0.25)',
+                        color: '#6D28D9'
+                      }}
+                    >
+                      No Due Date Set
+                    </span>
+                  ) : deadlineClass ? (
                     <span
                       style={{
                         fontSize: '11px',
@@ -319,7 +353,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                     >
                       {deadlineClass.relativeText}
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 <button

@@ -442,6 +442,13 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
           <span className="re-color-map-dot" />
           <span>&gt; 45 Days</span>
         </span>
+        <span
+          className="re-color-map-pill no-due"
+          title="Initial payment paid (less than purchase price) but due date not specified"
+        >
+          <span className="re-color-map-dot" />
+          <span>No Due Date</span>
+        </span>
         <span className="re-color-map-pill completed" title="100% Fully Paid">
           <span className="re-color-map-dot" />
           <span>Fully Paid</span>

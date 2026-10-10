@@ -235,9 +235,18 @@ export const RealEstateTable: React.FC<RealEstateTableProps> = ({
         <tbody>
           {items.map(({ property, activeRent, finances }) => {
             const typeConfig = PROPERTY_TYPE_CONFIG[property.p_type] || PROPERTY_TYPE_CONFIG['Land'];
-            const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
             const isRented = Boolean(activeRent);
             const isSold = property.property_status === 'SOLD';
+            const price = Number(property.purchase_price) || 0;
+            const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
+            const isPartialPaidNoDueDate =
+              !isSold &&
+              price > 0 &&
+              finances.totalPurchasePaid > 0 &&
+              finances.totalPurchasePaid < price &&
+              finances.paymentLeft > 0 &&
+              !finances.nextDueDate &&
+              !property.payment_deadline;
 
             return (
               <tr
@@ -325,6 +334,25 @@ export const RealEstateTable: React.FC<RealEstateTableProps> = ({
                     >
                       {deadlineClass.isOverdue ? <AlertCircle size={11} /> : <Clock size={11} />}
                       <span>{deadlineClass.relativeText}</span>
+                    </span>
+                  ) : isPartialPaidNoDueDate ? (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(124, 58, 237, 0.08)',
+                        border: '1px solid rgba(124, 58, 237, 0.25)',
+                        color: '#6D28D9'
+                      }}
+                      title={`Initial payment paid; Balance pending ₹ ${formatCurrency(finances.paymentLeft)} without due date`}
+                    >
+                      <Clock size={11} />
+                      <span>No Due Date</span>
                     </span>
                   ) : finances.paymentLeft === 0 ? (
                     <span style={{ color: '#16A34A', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600 }}>
