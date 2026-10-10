@@ -49,11 +49,11 @@ export function getDeadlineClassification(deadlineDateStr?: string): DeadlineCla
   if (daysLeft === 0) {
     return {
       level: 1,
-      label: 'Due Today',
+      label: '< 15 Days',
       daysLeft: 0,
       relativeText: 'Due today',
       isOverdue: false,
-      hexColor: '#9A3412',
+      hexColor: '#EA580C',
       bgTint: '#FFEDD5',
       borderTint: '#EA580C',
       textDark: '#7C2D12'
@@ -63,11 +63,11 @@ export function getDeadlineClassification(deadlineDateStr?: string): DeadlineCla
   if (daysLeft <= 15) {
     return {
       level: 1,
-      label: '< 15 Days (Urgent)',
+      label: '< 15 Days',
       daysLeft,
       relativeText: `Due in ${daysLeft} days`,
       isOverdue: false,
-      hexColor: '#9A3412', // Darkest shade
+      hexColor: '#EA580C',
       bgTint: '#FFEDD5',
       borderTint: '#EA580C',
       textDark: '#7C2D12'
@@ -82,40 +82,103 @@ export function getDeadlineClassification(deadlineDateStr?: string): DeadlineCla
       daysLeft,
       relativeText: `Due in ~${weeks} weeks (${daysLeft}d)`,
       isOverdue: false,
-      hexColor: '#C2410C', // Dark-medium shade
-      bgTint: '#FFF7ED',
-      borderTint: '#FB923C',
-      textDark: '#9A3412'
-    };
-  }
-
-  if (daysLeft <= 90) {
-    const months = Math.ceil(daysLeft / 30);
-    return {
-      level: 3,
-      label: '1.5 – 3 Months',
-      daysLeft,
-      relativeText: `Due in ~${months} mos (${daysLeft}d)`,
-      isOverdue: false,
-      hexColor: '#D97706', // Medium-light shade
-      bgTint: '#FEF3C7',
+      hexColor: '#D97706',
+      bgTint: '#FFFBEB',
       borderTint: '#FCD34D',
       textDark: '#B45309'
     };
   }
 
-  // Farther deadline (> 90 days)
+  // Farther deadline (> 45 days)
   const months = Math.ceil(daysLeft / 30);
   return {
-    level: 4,
-    label: '> 3 Months',
+    level: 3,
+    label: '> 45 Days',
     daysLeft,
-    relativeText: `Due in ~${months} mos`,
+    relativeText: `Due in ~${months} mos (${daysLeft}d)`,
     isOverdue: false,
-    hexColor: '#0284C7', // Lighter soft tone
+    hexColor: '#0284C7',
     bgTint: '#F0F9FF',
     borderTint: '#BAE6FD',
     textDark: '#0369A1'
+  };
+}
+
+export interface PropertyColorMarker {
+  color: string;
+  label: string;
+  bgTint: string;
+  borderTint: string;
+  textDark: string;
+  isOverdue?: boolean;
+}
+
+export function getPropertyColorMarker(params: {
+  isSold?: boolean;
+  purchasePrice: number;
+  totalPurchasePaid: number;
+  paymentLeft: number;
+  nextDueDate?: string;
+  paymentDeadline?: string;
+}): PropertyColorMarker {
+  const { isSold, purchasePrice, paymentLeft, nextDueDate, paymentDeadline } = params;
+
+  if (isSold) {
+    return {
+      color: '#475569',
+      label: 'Sold',
+      bgTint: '#F1F5F9',
+      borderTint: '#CBD5E1',
+      textDark: '#334155'
+    };
+  }
+
+  // 100% Fully Paid (balance is 0 and purchase price is recorded)
+  // Green is EXCLUSIVELY reserved for fully paid properties!
+  if (purchasePrice > 0 && paymentLeft <= 0) {
+    return {
+      color: '#16A34A',
+      label: 'Fully Paid',
+      bgTint: 'rgba(22, 163, 74, 0.08)',
+      borderTint: 'rgba(22, 163, 74, 0.25)',
+      textDark: '#15803D'
+    };
+  }
+
+  // Check deadline (from payment record nextDueDate or property paymentDeadline)
+  const effectiveDeadline = nextDueDate || paymentDeadline;
+  if (effectiveDeadline && paymentLeft > 0) {
+    const classification = getDeadlineClassification(effectiveDeadline);
+    if (classification) {
+      return {
+        color: classification.hexColor,
+        label: classification.label,
+        bgTint: classification.bgTint,
+        borderTint: classification.borderTint,
+        textDark: classification.textDark,
+        isOverdue: classification.isOverdue
+      };
+    }
+  }
+
+  // Initial payment is given (or balance left) but due date is not given -> Purple 'No Due Date'
+  if (purchasePrice > 0 && paymentLeft > 0 && !effectiveDeadline) {
+    return {
+      color: '#7C3AED',
+      label: 'No Due Date',
+      bgTint: 'rgba(124, 58, 237, 0.08)',
+      borderTint: 'rgba(124, 58, 237, 0.28)',
+      textDark: '#6D28D9'
+    };
+  }
+
+  // Default active holding
+  return {
+    color: '#0F1E36',
+    label: 'Active',
+    bgTint: 'rgba(15, 30, 54, 0.05)',
+    borderTint: 'rgba(15, 30, 54, 0.15)',
+    textDark: '#0F1E36'
   };
 }
 

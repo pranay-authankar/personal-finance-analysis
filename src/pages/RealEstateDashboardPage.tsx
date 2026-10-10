@@ -174,8 +174,10 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
     };
 
     const isFullyPaid = (p: PropertyRecord): boolean => {
+      const pr = Number(p.purchase_price) || 0;
+      if (p.property_status === 'SOLD') return false;
       const fin = calculatePropertyFinances(p.p_id);
-      return fin.paymentLeft <= 0;
+      return pr > 0 && fin.paymentLeft <= 0;
     };
 
     if (sort === 'due_date') {

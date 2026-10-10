@@ -7,7 +7,7 @@ import {
   isPropertyIncomplete,
   formatPropertyArea
 } from '../utils/realEstateUiHelpers';
-import { getDeadlineClassification } from '../utils/deadlinesColorMap';
+import { getPropertyColorMarker } from '../utils/deadlinesColorMap';
 import { MapPin, AlertCircle, Calendar, Clock } from 'lucide-react';
 
 interface RealEstateCardProps {
@@ -35,30 +35,26 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
   const isIncomplete = isPropertyIncomplete(property);
   const isSold = property.property_status === 'SOLD';
   const price = Number(property.purchase_price) || 0;
+  const totalPurchasePaid = finances?.totalPurchasePaid || 0;
+  const paymentLeft = finances?.paymentLeft !== undefined ? finances.paymentLeft : price;
+  const nextDueDate = finances?.nextDueDate || property.payment_deadline;
 
-  const isPartialPaidNoDueDate =
-    !isSold &&
-    price > 0 &&
-    (finances?.totalPurchasePaid || 0) > 0 &&
-    (finances?.totalPurchasePaid || 0) < price &&
-    (finances?.paymentLeft || 0) > 0 &&
-    !finances?.nextDueDate &&
-    !property.payment_deadline;
+  const marker = getPropertyColorMarker({
+    isSold,
+    purchasePrice: price,
+    totalPurchasePaid,
+    paymentLeft,
+    nextDueDate: finances?.nextDueDate,
+    paymentDeadline: property.payment_deadline
+  });
 
-  const deadlineClass = finances?.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
-  const isFullyPaid = !isSold && price > 0 && (finances?.paymentLeft === 0 || (finances?.paymentLeft || 0) <= 0);
-
-  const borderAccentColor = isPartialPaidNoDueDate
-    ? '#7C3AED'
-    : deadlineClass?.isOverdue
-    ? '#DC2626'
-    : theme.borderAccent;
+  const isFullyPaid = !isSold && price > 0 && paymentLeft <= 0;
 
   return (
     <div
       className={`re-card ${isSelected ? 'selected' : ''}`}
       style={{
-        borderLeftColor: borderAccentColor
+        borderLeftColor: marker.color
       }}
       onClick={onClick}
       role="button"
@@ -90,37 +86,25 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
           </div>
         </div>
 
-        {/* Status Badge: Active or Sold + No Due Date indicator */}
+        {/* Status Badge from Deadline Colour Map */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {isPartialPaidNoDueDate && (
+          <span
+            className="bullion-status-pill"
+            style={{
+              background: marker.bgTint,
+              borderColor: marker.borderTint,
+              color: marker.textDark
+            }}
+            title={`Status: ${marker.label}`}
+          >
             <span
-              className="bullion-status-pill"
+              className="bullion-status-dot"
               style={{
-                background: 'rgba(124, 58, 237, 0.08)',
-                borderColor: 'rgba(124, 58, 237, 0.25)',
-                color: '#6D28D9',
-                fontWeight: 600,
-                fontSize: '11px',
-                padding: '2px 8px'
+                background: marker.color,
+                boxShadow: `0 0 0 2px ${marker.color}33`
               }}
-              title={`Initial payment ₹ ${formatCurrency(finances?.totalPurchasePaid || 0)} paid; Balance pending ₹ ${formatCurrency(finances?.paymentLeft || 0)} without due date`}
-            >
-              <span
-                style={{
-                  width: '6px',
-                  height: '6px',
-                  borderRadius: '50%',
-                  background: '#7C3AED',
-                  boxShadow: '0 0 0 2px rgba(124, 58, 237, 0.2)',
-                  display: 'inline-block'
-                }}
-              />
-              <span>No Due Date</span>
-            </span>
-          )}
-          <span className={`bullion-status-pill ${isSold ? 'sold' : 'held'}`}>
-            <span className="bullion-status-dot" />
-            <span>{isSold ? 'Sold' : 'Active'}</span>
+            />
+            <span>{marker.label}</span>
           </span>
         </div>
       </div>
@@ -188,28 +172,28 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
               )}
             </span>
           </div>
-        ) : !isSold && finances?.paymentLeft && finances.paymentLeft > 0 && finances.nextDueDate ? (
+        ) : !isSold && paymentLeft > 0 && nextDueDate ? (
           <div
             className="re-card-rent-pill"
             style={{
-              background: deadlineClass ? deadlineClass.bgTint : finances.paymentStatus === 'missed' ? 'rgba(220, 38, 38, 0.08)' : 'rgba(181, 137, 36, 0.1)',
-              borderColor: deadlineClass ? deadlineClass.borderTint : finances.paymentStatus === 'missed' ? 'rgba(220, 38, 38, 0.25)' : 'rgba(181, 137, 36, 0.3)',
-              color: deadlineClass ? deadlineClass.textDark : finances.paymentStatus === 'missed' ? '#DC2626' : '#8C6615'
+              background: marker.bgTint,
+              borderColor: marker.borderTint,
+              color: marker.textDark
             }}
-            title={`Balance due: ₹ ${formatCurrency(finances.paymentLeft)} (${deadlineClass?.relativeText || ''})`}
+            title={`Balance due: ₹ ${formatCurrency(paymentLeft)}`}
           >
             <Clock size={11} style={{ marginRight: '3px' }} />
-            <span>Due: {formatDate(finances.nextDueDate)}</span>
+            <span>Due: {formatDate(nextDueDate)}</span>
           </div>
-        ) : isPartialPaidNoDueDate ? (
+        ) : !isSold && paymentLeft > 0 && !nextDueDate ? (
           <div
             className="re-card-rent-pill"
             style={{
-              background: 'rgba(124, 58, 237, 0.08)',
-              borderColor: 'rgba(124, 58, 237, 0.28)',
-              color: '#6D28D9'
+              background: marker.bgTint,
+              borderColor: marker.borderTint,
+              color: marker.textDark
             }}
-            title={`Initial payment paid: ₹ ${formatCurrency(finances?.totalPurchasePaid || 0)} | Balance pending: ₹ ${formatCurrency(finances?.paymentLeft || 0)} (No due date set)`}
+            title={`Initial payment paid: ₹ ${formatCurrency(totalPurchasePaid)} | Balance pending: ₹ ${formatCurrency(paymentLeft)} (No due date set)`}
           >
             <Clock size={11} style={{ marginRight: '3px' }} />
             <span>No Due Date</span>

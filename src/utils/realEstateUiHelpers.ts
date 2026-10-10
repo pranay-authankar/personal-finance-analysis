@@ -53,10 +53,10 @@ export function getRealEstateCategoryTheme(category: 'Land' | 'Commercial' | 'Pr
         category: 'Land',
         label: 'Land Plot',
         icon: '🌱',
-        borderAccent: '#059669', // Restrained emerald/sage green
-        bgTint: '#ECFDF5',
-        borderTint: '#A7F3D0',
-        textColor: '#065F46'
+        borderAccent: '#475569', // Executive slate neutral (green reserved strictly for Fully Paid)
+        bgTint: '#F8FAFC',
+        borderTint: '#E2E8F0',
+        textColor: '#334155'
       };
     case 'Commercial':
       return {

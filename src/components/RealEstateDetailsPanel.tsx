@@ -9,7 +9,7 @@ import {
   isPropertyIncomplete,
   formatPropertyArea
 } from '../utils/realEstateUiHelpers';
-import { getDeadlineClassification } from '../utils/deadlinesColorMap';
+import { getPropertyColorMarker, getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { PhotoModal } from './PhotoModal';
 import { StartRentModal } from './StartRentModal';
 import { SellPropertyModal } from './SellPropertyModal';
@@ -91,6 +91,14 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
   const isSold = property.property_status === 'SOLD';
   const price = Number(property.purchase_price) || 0;
   const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
+  const marker = getPropertyColorMarker({
+    isSold,
+    purchasePrice: price,
+    totalPurchasePaid: finances.totalPurchasePaid,
+    paymentLeft: finances.paymentLeft,
+    nextDueDate: finances.nextDueDate,
+    paymentDeadline: property.payment_deadline
+  });
   const isPartialPaidNoDueDate =
     !isSold &&
     price > 0 &&
@@ -154,9 +162,24 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
               </h2>
               <span className="bullion-details-subtitle">{theme.label}</span>
             </div>
-            <span className={`bullion-status-pill ${isSold ? 'sold' : 'held'}`} style={{ marginLeft: 'auto' }}>
-              <span className="bullion-status-dot" />
-              <span>{isSold ? 'Sold' : 'Active'}</span>
+            <span
+              className="bullion-status-pill"
+              style={{
+                marginLeft: 'auto',
+                background: marker.bgTint,
+                borderColor: marker.borderTint,
+                color: marker.textDark
+              }}
+              title={`Status: ${marker.label}`}
+            >
+              <span
+                className="bullion-status-dot"
+                style={{
+                  background: marker.color,
+                  boxShadow: `0 0 0 2px ${marker.color}33`
+                }}
+              />
+              <span>{marker.label}</span>
             </span>
           </div>
         </div>
@@ -211,23 +234,8 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
             style={{
               padding: '16px',
               borderRadius: '12px',
-              border: `1px solid ${
-                finances.paymentStatus === 'missed'
-                  ? '#FCA5A5'
-                  : isPartialPaidNoDueDate
-                  ? '#DDD6FE'
-                  : finances.paymentLeft > 0
-                  ? '#CBD5E1'
-                  : '#A7F3D0'
-              }`,
-              background:
-                finances.paymentStatus === 'missed'
-                  ? '#FEF2F2'
-                  : isPartialPaidNoDueDate
-                  ? '#FAF5FF'
-                  : finances.paymentLeft > 0
-                  ? '#F8FAFC'
-                  : '#ECFDF5',
+              border: `1px solid ${marker.borderTint}`,
+              background: marker.bgTint,
               display: 'flex',
               flexDirection: 'column',
               gap: '12px'
@@ -237,15 +245,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Wallet
                   size={18}
-                  color={
-                    finances.paymentStatus === 'missed'
-                      ? '#DC2626'
-                      : isPartialPaidNoDueDate
-                      ? '#7C3AED'
-                      : finances.paymentLeft > 0
-                      ? 'var(--color-navy)'
-                      : '#059669'
-                  }
+                  color={marker.color}
                 />
                 <span
                   style={{
@@ -253,14 +253,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                     fontWeight: 700,
                     textTransform: 'uppercase',
                     letterSpacing: '0.04em',
-                    color:
-                      finances.paymentStatus === 'missed'
-                        ? '#B91C1C'
-                        : isPartialPaidNoDueDate
-                        ? '#6D28D9'
-                        : finances.paymentLeft > 0
-                        ? 'var(--color-navy)'
-                        : '#047857'
+                    color: marker.textDark
                   }}
                 >
                   Payment Dues Tracker
@@ -273,24 +266,11 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
                   fontWeight: 700,
                   padding: '2px 8px',
                   borderRadius: '12px',
-                  background:
-                    finances.paymentStatus === 'missed'
-                      ? '#DC2626'
-                      : finances.paymentLeft === 0
-                      ? '#10B981'
-                      : isPartialPaidNoDueDate
-                      ? '#7C3AED'
-                      : 'var(--color-navy)',
+                  background: marker.color,
                   color: '#FFFFFF'
                 }}
               >
-                {finances.paymentStatus === 'missed'
-                  ? 'Overdue'
-                  : finances.paymentLeft === 0
-                  ? '100% Paid'
-                  : isPartialPaidNoDueDate
-                  ? 'No Due Date Set'
-                  : 'Pending Balance'}
+                {marker.label}
               </span>
             </div>
 
