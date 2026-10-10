@@ -6,11 +6,17 @@ import {
   getRealEstateCategoryTheme,
   isPropertyIncomplete
 } from '../utils/realEstateUiHelpers';
-import { MapPin, AlertCircle, Calendar } from 'lucide-react';
+import { MapPin, AlertCircle, Calendar, Clock } from 'lucide-react';
 
 interface RealEstateCardProps {
   property: PropertyRecord;
   activeRent?: RentRecord;
+  finances?: {
+    totalPurchasePaid: number;
+    paymentLeft: number;
+    nextDueDate?: string;
+    paymentStatus: 'completed' | 'pending' | 'missed';
+  };
   isSelected?: boolean;
   onClick: () => void;
 }
@@ -18,6 +24,7 @@ interface RealEstateCardProps {
 export const RealEstateCard: React.FC<RealEstateCardProps> = ({
   property,
   activeRent,
+  finances,
   isSelected = false,
   onClick
 }) => {
@@ -103,7 +110,7 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
         </div>
 
         {/* Discreet Rental Badge with Next Rent Due Date if active lease */}
-        {activeRent && !isSold && (
+        {activeRent && !isSold ? (
           <div className="re-card-rent-pill" title={`Tenant: ${activeRent.tenant_name}`}>
             <span className="re-rent-tag-dot" />
             <span>
@@ -117,7 +124,20 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
               )}
             </span>
           </div>
-        )}
+        ) : !isSold && finances?.paymentLeft && finances.paymentLeft > 0 && finances.nextDueDate ? (
+          <div
+            className="re-card-rent-pill"
+            style={{
+              background: finances.paymentStatus === 'missed' ? 'rgba(220, 38, 38, 0.08)' : 'rgba(181, 137, 36, 0.1)',
+              borderColor: finances.paymentStatus === 'missed' ? 'rgba(220, 38, 38, 0.25)' : 'rgba(181, 137, 36, 0.3)',
+              color: finances.paymentStatus === 'missed' ? '#DC2626' : '#8C6615'
+            }}
+            title={`Balance due: ₹ ${formatCurrency(finances.paymentLeft)}`}
+          >
+            <Clock size={11} style={{ marginRight: '3px' }} />
+            <span>Due: {formatDate(finances.nextDueDate)}</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

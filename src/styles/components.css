@@ -4615,6 +4615,31 @@
   color: #8C6615;
 }
 
+/* Real Estate Sort Selector */
+.re-sort-select {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  color: var(--color-navy);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.re-sort-select:hover {
+  border-color: var(--color-navy);
+}
+
+.re-sort-select:focus {
+  border-color: var(--color-navy);
+  box-shadow: 0 0 0 2px rgba(15, 30, 54, 0.08);
+}
+
+
 
 
 

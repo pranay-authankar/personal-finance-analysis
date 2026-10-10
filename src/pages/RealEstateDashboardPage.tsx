@@ -33,7 +33,8 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
     activeMember,
     properties: allProperties,
     rents,
-    getActiveRentForProperty
+    getActiveRentForProperty,
+    calculatePropertyFinances
   } = useInvestments();
 
   // All properties for active member (or all vault properties)
@@ -56,6 +57,9 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
 
   // Search query
   const [search, setSearch] = useState('');
+
+  // Sort order: due_date | newest | price_desc | price_asc | name
+  const [sort, setSort] = useState<'due_date' | 'newest' | 'price_desc' | 'price_asc' | 'name'>('due_date');
 
   // View mode: Cards vs List
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
@@ -156,18 +160,41 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
       });
     }
 
-    // Sort: Active first, then highest purchase price
-    list.sort((a, b) => {
-      const statusA = a.property_status || 'ACTIVE';
-      const statusB = b.property_status || 'ACTIVE';
-      if (statusA !== statusB) {
-        return statusA === 'SOLD' ? 1 : -1;
-      }
-      return (Number(b.purchase_price) || 0) - (Number(a.purchase_price) || 0);
-    });
+    // Sort properties based on selected sort option
+    const getPropertyClosestDueDate = (p: PropertyRecord): string | null => {
+      const fin = calculatePropertyFinances(p.p_id);
+      const rent = getActiveRentForProperty(p.p_id);
+      const dates: string[] = [];
+      if (fin.nextDueDate) dates.push(fin.nextDueDate);
+      if (rent?.next_rent_due) dates.push(rent.next_rent_due);
+      if (dates.length === 0) return null;
+      dates.sort();
+      return dates[0];
+    };
+
+    if (sort === 'due_date') {
+      list.sort((a, b) => {
+        const dueA = getPropertyClosestDueDate(a);
+        const dueB = getPropertyClosestDueDate(b);
+        if (dueA && dueB) {
+          return dueA.localeCompare(dueB);
+        }
+        if (dueA && !dueB) return -1;
+        if (!dueA && dueB) return 1;
+        return (b.purchase_date || '').localeCompare(a.purchase_date || '');
+      });
+    } else if (sort === 'newest') {
+      list.sort((a, b) => (b.purchase_date || '').localeCompare(a.purchase_date || ''));
+    } else if (sort === 'price_desc') {
+      list.sort((a, b) => (Number(b.purchase_price) || 0) - (Number(a.purchase_price) || 0));
+    } else if (sort === 'price_asc') {
+      list.sort((a, b) => (Number(a.purchase_price) || 0) - (Number(b.purchase_price) || 0));
+    } else if (sort === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
 
     return list;
-  }, [properties, activeTab, search, filters]);
+  }, [properties, activeTab, search, filters, sort, calculatePropertyFinances, getActiveRentForProperty]);
 
   const selectedProperty = useMemo(() => {
     if (!selectedPropertyId) return null;
@@ -196,7 +223,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
 
   return (
     <div className="main-content fade-in" style={{ maxWidth: '1240px', margin: '0 auto', paddingBottom: '48px' }}>
-      {/* 1. Header: “Real Estate” + “+ Add Property” */}
+      {/* 1. Header: “Real Estate” + “Add Property” */}
       <div className="bullion-executive-header">
         <div>
           <div className="bullion-breadcrumb-text">
@@ -218,7 +245,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
           onClick={handleOpenAddModal}
         >
           <Plus size={16} />
-          <span>+ Add Property</span>
+          <span>Add Property</span>
         </button>
       </div>
 
@@ -300,7 +327,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
           )}
         </div>
 
-        {/* Actions: Clear filters, Filter popover, View switcher */}
+        {/* Actions: Clear filters, Sort select, Filter popover, View switcher */}
         <div className="bullion-toolbar-actions">
           {hasActiveFilters && (
             <button
@@ -311,6 +338,20 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
               Clear filters
             </button>
           )}
+
+          {/* Sort By Dropdown (Feature 5) */}
+          <select
+            className="re-sort-select"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as any)}
+            aria-label="Sort properties"
+          >
+            <option value="due_date">Sort: Upcoming Due Date</option>
+            <option value="newest">Sort: Newest Purchase</option>
+            <option value="price_desc">Sort: Price: High to Low</option>
+            <option value="price_asc">Sort: Price: Low to High</option>
+            <option value="name">Sort: Name (A to Z)</option>
+          </select>
 
           {/* Compact filter control for Status, Location, and Purchase Price */}
           <RealEstateFilterPopover
@@ -375,7 +416,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
               onClick={handleOpenAddModal}
             >
               <Plus size={16} />
-              <span>+ Add Property</span>
+              <span>Add Property</span>
             </button>
           )}
         </div>
@@ -386,6 +427,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
               key={p.p_id}
               property={p}
               activeRent={getActiveRentForProperty(p.p_id)}
+              finances={calculatePropertyFinances(p.p_id)}
               isSelected={selectedPropertyId === p.p_id}
               onClick={() => setSelectedPropertyId(p.p_id)}
             />
@@ -398,6 +440,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
               key={p.p_id}
               property={p}
               activeRent={getActiveRentForProperty(p.p_id)}
+              finances={calculatePropertyFinances(p.p_id)}
               isSelected={selectedPropertyId === p.p_id}
               onClick={() => setSelectedPropertyId(p.p_id)}
             />
