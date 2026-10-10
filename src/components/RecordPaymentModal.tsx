@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { formatCurrency, formatDate } from '../utils/calculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import { X, Wallet, Check, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 
 interface RecordPaymentModalProps {
@@ -31,7 +32,7 @@ export const RecordPaymentModal: React.FC<RecordPaymentModalProps> = ({
     maxRemaining > 0 ? String(maxRemaining) : ''
   );
   const [paymentDate, setPaymentDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string>('');

@@ -35,6 +35,7 @@ import {
   generateRdSchedule
 } from '../utils/postOfficeCalculations';
 import { csvDb } from '../services/csvDatabase';
+import { useDateTime } from './DateTimeContext';
 
 const STORAGE_KEYS = {
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id',
@@ -201,6 +202,8 @@ interface InvestmentContextType {
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
 
 export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { now, todayStr, midnightTicker } = useDateTime();
+
   const [activeMemberId, setActiveMemberIdState] = useState<string>(() => {
     return localStorage.getItem(STORAGE_KEYS.ACTIVE_MEMBER_ID) || '';
   });
@@ -248,9 +251,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Map family_members.csv to FamilyMember[]
   const members: FamilyMember[] = useMemo(() => {
-    // Reference dataRevision to trigger recalculation when CSVs change
+    // Reference dataRevision and midnightTicker to trigger recalculation when CSVs change or midnight rolls over
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     dataRevision;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    midnightTicker;
 
     return csvDb.familyMembers.map((m) => {
       const memberAssets = csvDb.assets.filter(
@@ -265,7 +270,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const f = csvDb.fds.find((item) => item.a_id === a.a_id);
           if (f) {
             const doc = csvDb.documents.find((d) => d.a_id === a.a_id || d.fd_id === f.fd_id);
-            memberFds.push(fdRecordToFixedDeposit(f, doc?.d_link));
+            memberFds.push(fdRecordToFixedDeposit(f, doc?.d_link, now));
           }
         }
       }
@@ -296,16 +301,16 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               let contribs = csvDb.contributions.filter((c) => c.a_id === po.a_id);
               if (contribs.length === 0) {
                 const monthlyAmt = Number(po.principal) || 5000;
-                contribs = generateRdSchedule(po.a_id, monthlyAmt, po.start_date, 1, 60);
+                contribs = generateRdSchedule(po.a_id, monthlyAmt, po.start_date, 1, 60, now);
                 csvDb.addContributions(contribs);
               }
-              const rdMetrics = calculateRdDerivedMetrics(contribs);
+              const rdMetrics = calculateRdDerivedMetrics(contribs, now);
               const firstContrib = contribs[0];
               const monthlyDeposit = firstContrib ? Number(firstContrib.amount) || 0 : (Number(po.principal) || 5000);
 
               let effectiveNextDepositDate = rdMetrics.nextDepositDate;
               if (!effectiveNextDepositDate && po.start_date) {
-                effectiveNextDepositDate = calculateNextMonthlyInterestDate(po.start_date);
+                effectiveNextDepositDate = calculateNextMonthlyInterestDate(po.start_date, now);
               }
 
               memberPo.push({
@@ -333,7 +338,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 Number(po.principal) || 0,
                 Number(po.interest_rate) || 0
               );
-              const nextInterestDate = calculateNextMonthlyInterestDate(po.start_date);
+              const nextInterestDate = calculateNextMonthlyInterestDate(po.start_date, now);
 
               memberPo.push({
                 id: po.po_id,
@@ -357,7 +362,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 Number(po.principal) || 0,
                 Number(po.interest_rate) || 0
               );
-              const nextInterestDate = calculateNextQuarterlyInterestDate(po.start_date);
+              const nextInterestDate = calculateNextQuarterlyInterestDate(po.start_date, now);
 
               memberPo.push({
                 id: po.po_id,
@@ -569,7 +574,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         realizedFunds: memberRealized
       };
     });
-  }, [dataRevision]);
+  }, [dataRevision, midnightTicker, now]);
 
   // Fallback empty member when 0 family members exist in CSV
   const defaultEmptyMember: FamilyMember = useMemo(() => ({
@@ -703,8 +708,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         acc_number: (fdData.accountNumber || `•••• ${Math.floor(1000 + Math.random() * 9000)}`).trim(),
         principal: Number(fdData.principal) || 0,
         interest_rate: Number(fdData.interestRate) || 0,
-        start_date: fdData.startDate || new Date().toISOString().split('T')[0],
-        maturity_date: fdData.maturityDate || new Date().toISOString().split('T')[0],
+        start_date: fdData.startDate || todayStr,
+        maturity_date: fdData.maturityDate || todayStr,
         actual_end_date: fdData.actualEndDate || ''
       };
 
@@ -840,8 +845,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         account_number: poData.accountNumber || `PO-${Math.floor(10000 + Math.random() * 90000)}`,
         principal: isRd ? '' : (Number(poData.amount) || 0),
         interest_rate: Number(poData.interestRate) || 0,
-        start_date: poData.openingDate || new Date().toISOString().split('T')[0],
-        maturity_date: poData.maturityDate || new Date().toISOString().split('T')[0],
+        start_date: poData.openingDate || todayStr,
+        maturity_date: poData.maturityDate || todayStr,
         actual_end_date: poData.actualEndDate || '',
         scheme_status: schemeStatus
       });
@@ -853,9 +858,10 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const schedule = generateRdSchedule(
           a_id,
           rdMonthly,
-          poData.openingDate || new Date().toISOString().split('T')[0],
+          poData.openingDate || todayStr,
           initialPaid,
-          60
+          60,
+          now
         );
         csvDb.addContributions(schedule);
       }
@@ -916,7 +922,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const recordRdContributionPayment = async (contribution_id: string, payment_date?: string): Promise<void> => {
-    const datePaid = payment_date || new Date().toISOString().split('T')[0];
+    const datePaid = payment_date || todayStr;
     await csvDb.updateContribution(contribution_id, {
       status: 'PAID',
       payment_date: datePaid
@@ -944,7 +950,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let a_id = `ast_bul_${Date.now()}`;
     const customType = (bullionData.typeName || bullionData.type || 'Custom Bullion').trim();
     const purchaseValue = bullionData.investedValue !== undefined ? Number(bullionData.investedValue) : 0;
-    const purchaseDate = bullionData.purchaseDate || new Date().toISOString().split('T')[0];
+    const purchaseDate = bullionData.purchaseDate || todayStr;
     const initialPay = bullionData.initialPayment !== undefined && !isNaN(Number(bullionData.initialPayment))
       ? Math.max(0, Number(bullionData.initialPayment))
       : 0;
@@ -1160,7 +1166,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       purchase_price: Number(data.purchase_price) || 0,
       party_name: data.party_name.trim(),
       party_contact: data.party_contact.trim(),
-      purchase_date: data.purchase_date || new Date().toISOString().split('T')[0],
+      purchase_date: data.purchase_date || todayStr,
       p_notes: data.p_notes?.trim() || '',
       property_status: 'ACTIVE',
       payment_deadline: data.payment_deadline || ''
@@ -1175,7 +1181,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         payment_type: 'PURCHASE',
         payment_context: 'PURCHASE',
         amount: numInitialPayment,
-        payment_date: data.purchase_date || new Date().toISOString().split('T')[0],
+        payment_date: data.purchase_date || todayStr,
         due_date: '',
         status: 'PAID',
         notes: 'Initial Payment / Down Payment',
@@ -1268,17 +1274,17 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       tenant_name: rentData.tenant_name.trim(),
       tenant_contact: rentData.tenant_contact.trim(),
       rent_amount: Number(rentData.rent_amount) || 0,
-      rent_start_date: rentData.rent_start_date || new Date().toISOString().split('T')[0],
+      rent_start_date: rentData.rent_start_date || todayStr,
       rent_end_date: rentData.rent_end_date || '',
       next_rent_due: rentData.next_rent_due || '',
       r_notes: rentData.r_notes?.trim() || ''
     };
 
     // Deactivate previous active rent if any
-    const activePrev = csvDb.getActiveRentForProperty(p_id);
+    const activePrev = csvDb.getActiveRentForProperty(p_id, now);
     if (activePrev) {
       csvDb.updateRent(activePrev.r_id, {
-        rent_end_date: new Date().toISOString().split('T')[0]
+        rent_end_date: todayStr
       });
     }
 
@@ -1304,19 +1310,19 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const stopRent = (r_id: string) => {
     csvDb.updateRent(r_id, {
-      rent_end_date: new Date().toISOString().split('T')[0]
+      rent_end_date: todayStr
     });
     bumpRevision();
   };
 
   const getActiveRentForProperty = (p_id: string): RentRecord | undefined => {
-    const active = csvDb.getActiveRentForProperty(p_id);
+    const active = csvDb.getActiveRentForProperty(p_id, now);
     if (!active) return undefined;
     return { ...active, is_active: true };
   };
 
   const getRentsForProperty = (p_id: string): RentRecord[] => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayStr;
     return csvDb.rents
       .filter((r) => r.p_id === p_id)
       .map((r) => ({
@@ -1346,10 +1352,10 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     csvDb.updateAsset(a_id, { asset_status: 'SOLD' });
 
     // 2. Close active rent if any
-    const activeRent = csvDb.getActiveRentForProperty(p_id);
+    const activeRent = csvDb.getActiveRentForProperty(p_id, now);
     if (activeRent) {
       csvDb.updateRent(activeRent.r_id, {
-        rent_end_date: saleData.sale_date || new Date().toISOString().split('T')[0]
+        rent_end_date: saleData.sale_date || todayStr
       });
     }
 
@@ -1364,7 +1370,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       buyer_name: saleData.buyer_name.trim(),
       buyer_contact: '',
       sale_price: numSalePrice,
-      sale_date: saleData.sale_date || new Date().toISOString().split('T')[0],
+      sale_date: saleData.sale_date || todayStr,
       payment_due_date: saleData.due_date || '',
       sale_notes: saleData.notes?.trim() || ''
     });
@@ -1377,7 +1383,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         payment_type: 'RECEIVED',
         payment_context: 'SALE',
         amount: initialReceived,
-        payment_date: saleData.sale_date || new Date().toISOString().split('T')[0],
+        payment_date: saleData.sale_date || todayStr,
         due_date: '',
         status: 'RECEIVED',
         notes: saleData.notes?.trim() || `Initial sale payment from buyer ${saleData.buyer_name}`,
@@ -1421,7 +1427,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       payment_type: 'PURCHASE',
       payment_context: 'PURCHASE',
       amount: numAmount,
-      payment_date: paymentData.payment_date || new Date().toISOString().split('T')[0],
+      payment_date: paymentData.payment_date || todayStr,
       due_date: paymentData.due_date || '',
       status: paymentData.status || 'PAID',
       notes: paymentData.notes?.trim() || 'Purchase installment payment',
@@ -1452,7 +1458,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       payment_type: 'RECEIVED',
       payment_context: 'SALE',
       amount: numAmount,
-      payment_date: paymentData.payment_date || new Date().toISOString().split('T')[0],
+      payment_date: paymentData.payment_date || todayStr,
       due_date: paymentData.due_date || '',
       status: paymentData.status || 'RECEIVED',
       notes: paymentData.notes?.trim() || 'Sale receivable payment received',
@@ -1511,7 +1517,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const calculatePropertyFinances = (p_id: string) => {
-    const finances = csvDb.calculatePropertyFinances(p_id);
+    const finances = csvDb.calculatePropertyFinances(p_id, now);
     const isSold = getPropertyById(p_id)?.property_status === 'SOLD';
     return {
       totalPurchasePaid: finances.totalPurchasePaid,
@@ -1534,7 +1540,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const payment_id = rfData.id || `pay_rf_${Date.now()}`;
     const a_id = rfData.sourceInvestmentId || `ast_rf_${Date.now()}`;
     const amount = Number(rfData.amount) || 0;
-    const dateReceived = rfData.dateReceived || new Date().toISOString().split('T')[0];
+    const dateReceived = rfData.dateReceived || todayStr;
     const notes = rfData.remarks || `Proceeds from ${rfData.sourceName || 'Asset'}`;
 
     const existingPayment = csvDb.payments.find((p) => p.payment_id === payment_id);
@@ -1617,7 +1623,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (fd) {
         a_id = fd.a_id;
         csvDb.updateFd(fd.fd_id, {
-          actual_end_date: payload.dateReceived || new Date().toISOString().split('T')[0]
+          actual_end_date: payload.dateReceived || todayStr
         });
         csvDb.updateAsset(fd.a_id, {
           asset_status: payload.reason === 'Matured' ? 'MATURED' : 'REDEEMED'
@@ -1628,7 +1634,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (po) {
         a_id = po.a_id;
         csvDb.updatePostOffice(po.po_id, {
-          actual_end_date: payload.dateReceived || new Date().toISOString().split('T')[0],
+          actual_end_date: payload.dateReceived || todayStr,
           scheme_status: payload.reason === 'Matured' ? 'MATURED' : 'REDEEMED'
         });
         csvDb.updateAsset(po.a_id, {

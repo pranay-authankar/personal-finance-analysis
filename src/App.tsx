@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { DateTimeProvider } from './context/DateTimeContext';
 import { InvestmentProvider, useInvestments } from './context/InvestmentContext';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
@@ -224,11 +225,13 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <InvestmentProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </InvestmentProvider>
+    <DateTimeProvider>
+      <InvestmentProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </InvestmentProvider>
+    </DateTimeProvider>
   );
 }
 

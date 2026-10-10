@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useInvestments } from '../context/InvestmentContext';
 import type { RealizedReason, RealizedSourceCategory } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import { X, CheckCircle2, Wallet, Info } from 'lucide-react';
 
 interface RealizeAssetModalProps {
@@ -30,7 +31,7 @@ export const RealizeAssetModal: React.FC<RealizeAssetModalProps> = ({
   const [amount, setAmount] = useState<string>(suggestedAmount ? String(suggestedAmount) : '');
   const [reason, setReason] = useState<RealizedReason>(defaultReason);
   const [dateReceived, setDateReceived] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [remarks, setRemarks] = useState<string>('');
   const [error, setError] = useState<string>('');

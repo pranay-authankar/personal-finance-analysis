@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { GlobalHeaderClock } from './GlobalHeaderClock';
 import { Layers, PieChart, Landmark, Mail, Coins, Building, Wallet, Trash2, LogOut, ChevronDown } from 'lucide-react';
 
 interface NavbarProps {
@@ -116,8 +117,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
           </button>
         </nav>
 
-        {/* Right Side: Active Member Switcher & Utilities */}
+        {/* Right Side: Global Clock, Active Member Switcher & Utilities */}
         <div className="nav-user-actions">
+          <GlobalHeaderClock />
+
           <button
             className="member-selector-btn"
             onClick={() => navigate('/family-select')}

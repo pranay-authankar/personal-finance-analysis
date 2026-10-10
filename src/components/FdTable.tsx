@@ -2,6 +2,7 @@ import React from 'react';
 import type { FixedDeposit } from '../types';
 import { calculateFDValues, formatCurrency, formatDate } from '../utils/calculations';
 import { getMaturityClassification } from '../utils/maturityColorMap';
+import { useDateTime } from '../context/DateTimeContext';
 import { Landmark, Image as ImageIcon } from 'lucide-react';
 
 interface FdTableProps {
@@ -10,6 +11,8 @@ interface FdTableProps {
 }
 
 export const FdTable: React.FC<FdTableProps> = ({ fds, onSelectFd }) => {
+  const { now } = useDateTime();
+
   return (
     <div className="fd-table-wrapper">
       <table className="fd-desktop-table">
@@ -28,7 +31,7 @@ export const FdTable: React.FC<FdTableProps> = ({ fds, onSelectFd }) => {
         <tbody>
           {fds.map((fd) => {
             const calc = calculateFDValues(fd.principal, fd.interestRate, fd.startDate, fd.maturityDate);
-            const mat = getMaturityClassification(fd.maturityDate);
+            const mat = getMaturityClassification(fd.maturityDate, now);
 
             return (
               <tr key={fd.id} onClick={() => onSelectFd(fd.id)}>

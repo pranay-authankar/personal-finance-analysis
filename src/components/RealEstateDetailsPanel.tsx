@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import type { PropertyRecord, RentRecord, DocumentRecord } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import {
@@ -53,6 +54,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
   isDrawer = false
 }) => {
   const navigate = useNavigate();
+  const { now } = useDateTime();
   const {
     getActiveRentForProperty,
     getDocumentsForProperty,
@@ -90,14 +92,15 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
   const isIncomplete = isPropertyIncomplete(property);
   const isSold = property.property_status === 'SOLD';
   const price = Number(property.purchase_price) || 0;
-  const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate) : null;
+  const deadlineClass = finances.nextDueDate ? getDeadlineClassification(finances.nextDueDate, now) : null;
   const marker = getPropertyColorMarker({
     isSold,
     purchasePrice: price,
     totalPurchasePaid: finances.totalPurchasePaid,
     paymentLeft: finances.paymentLeft,
     nextDueDate: finances.nextDueDate,
-    paymentDeadline: property.payment_deadline
+    paymentDeadline: property.payment_deadline,
+    referenceDate: now
   });
   const isPartialPaidNoDueDate =
     !isSold &&

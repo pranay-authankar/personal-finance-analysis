@@ -1,4 +1,5 @@
 import type { PostOfficeSchemeType, ContributionRecord } from '../types';
+import { getLocalDateString, parseLocalDate } from './dateUtils';
 
 export interface SchemeMetadata {
   type: PostOfficeSchemeType;
@@ -177,7 +178,7 @@ export function getDefaultMaturityDateForScheme(
   openingDateStr: string,
   tenureYears: number = 5
 ): string {
-  const openDate = openingDateStr ? new Date(openingDateStr) : new Date();
+  const openDate = parseLocalDate(openingDateStr) || new Date();
   const matDate = new Date(openDate);
 
   if (schemeType === 'TD' || schemeType === 'POTD') {
@@ -187,27 +188,33 @@ export function getDefaultMaturityDateForScheme(
     matDate.setFullYear(matDate.getFullYear() + 5);
   }
 
-  return matDate.toISOString().split('T')[0];
+  return getLocalDateString(matDate);
 }
 
 /**
  * Calculates next monthly interest payout date (for MIS)
  * Occurs on the same day-of-month as start_date each month.
  */
-export function calculateNextMonthlyInterestDate(startDateStr: string): string {
+export function calculateNextMonthlyInterestDate(
+  startDateStr: string,
+  referenceDate: Date = new Date()
+): string {
   if (!startDateStr) return '';
-  const start = new Date(startDateStr);
+  const start = parseLocalDate(startDateStr) || referenceDate;
   const day = start.getDate();
-  const today = new Date();
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
 
   // Candidate: this month on `day`
   let candidate = new Date(today.getFullYear(), today.getMonth(), day);
+  candidate.setHours(0, 0, 0, 0);
   if (candidate <= today) {
     // Next month on `day`
     candidate = new Date(today.getFullYear(), today.getMonth() + 1, day);
+    candidate.setHours(0, 0, 0, 0);
   }
 
-  return candidate.toISOString().split('T')[0];
+  return getLocalDateString(candidate);
 }
 
 /**
@@ -215,31 +222,39 @@ export function calculateNextMonthlyInterestDate(startDateStr: string): string {
  * Post Office pays SCSS interest on March 31, June 30, September 30, and December 31
  * or on quarterly anniversaries of the deposit start date.
  */
-export function calculateNextQuarterlyInterestDate(startDateStr: string): string {
+export function calculateNextQuarterlyInterestDate(
+  startDateStr: string,
+  referenceDate: Date = new Date()
+): string {
   if (!startDateStr) return '';
-  const start = new Date(startDateStr);
-  const today = new Date();
+  const start = parseLocalDate(startDateStr) || referenceDate;
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
 
   // Check quarterly intervals: 3, 6, 9, 12... months from start
   let testDate = new Date(start);
+  testDate.setHours(0, 0, 0, 0);
   while (testDate <= today) {
     testDate.setMonth(testDate.getMonth() + 3);
   }
 
-  return testDate.toISOString().split('T')[0];
+  return getLocalDateString(testDate);
 }
 
 /**
  * Derives RD payment schedule metrics strictly from contributions.csv
  */
-export function calculateRdDerivedMetrics(contributions: ContributionRecord[]): {
+export function calculateRdDerivedMetrics(
+  contributions: ContributionRecord[],
+  referenceDate: Date = new Date()
+): {
   totalDepositedAmount: number;
   depositsMadeCount: number;
   missedDepositsCount: number;
   nextDepositDate: string;
   upcomingDepositAmount: number;
 } {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString(referenceDate);
 
   const paidContribs = contributions.filter((c) => c.status === 'PAID');
   const totalDepositedAmount = paidContribs.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
@@ -276,21 +291,21 @@ export function generateRdSchedule(
   monthlyAmount: number,
   startDateStr: string,
   initialPaidMonths: number = 1,
-  totalMonths: number = 60
+  totalMonths: number = 60,
+  referenceDate: Date = new Date()
 ): ContributionRecord[] {
   const records: ContributionRecord[] = [];
-  const start = new Date(startDateStr);
+  const start = parseLocalDate(startDateStr) || referenceDate;
   const depositDay = start.getDate();
-  const now = new Date();
+  const todayStr = getLocalDateString(referenceDate);
 
   for (let m = 0; m < totalMonths; m++) {
     const dueDate = new Date(start.getFullYear(), start.getMonth() + m, depositDay);
-    const dueDateStr = dueDate.toISOString().split('T')[0];
+    const dueDateStr = getLocalDateString(dueDate);
 
     // Determine status
     let status = 'PENDING';
     let paymentDate = '';
-    const todayStr = now.toISOString().split('T')[0];
     if (m < initialPaidMonths) {
       status = 'PAID';
       paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;

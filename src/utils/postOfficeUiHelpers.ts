@@ -1,4 +1,5 @@
 import type { PostOfficeInvestment } from '../types';
+import { getDaysDiff, parseLocalDate } from './dateUtils';
 
 /**
  * Masks account number to show only the last 4 digits for privacy.
@@ -33,7 +34,8 @@ export interface PostOfficeStatusIndicator {
  * - RD specific: Missed (Crimson), Pending (Amber), Paid (Green)
  */
 export function getPostOfficeStatus(
-  inv: PostOfficeInvestment
+  inv: PostOfficeInvestment,
+  referenceDate: Date = new Date()
 ): PostOfficeStatusIndicator {
   if (inv.status === 'redeemed' || inv.status === 'closed' || (inv.actualEndDate && inv.actualEndDate.trim() !== '')) {
     return {
@@ -60,12 +62,7 @@ export function getPostOfficeStatus(
     }
 
     if (inv.nextDepositDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const depDate = new Date(inv.nextDepositDate);
-      depDate.setHours(0, 0, 0, 0);
-      const diffMs = depDate.getTime() - today.getTime();
-      const daysLeft = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      const daysLeft = getDaysDiff(inv.nextDepositDate, referenceDate) ?? 0;
 
       if (daysLeft < 0) {
         return {
@@ -115,13 +112,7 @@ export function getPostOfficeStatus(
     };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const matDate = new Date(inv.maturityDate);
-  matDate.setHours(0, 0, 0, 0);
-
-  const diffMs = matDate.getTime() - today.getTime();
-  const daysLeft = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const daysLeft = getDaysDiff(inv.maturityDate, referenceDate) ?? 0;
 
   if (daysLeft < 0) {
     return {
@@ -177,7 +168,10 @@ export function getPostOfficeStatus(
  * - MIS / SCSS: next interest payout date
  * - TD: maturity date
  */
-export function getNextPostOfficeDueInfo(investments: PostOfficeInvestment[]): {
+export function getNextPostOfficeDueInfo(
+  investments: PostOfficeInvestment[],
+  referenceDate: Date = new Date()
+): {
   title: string;
   dateStr: string | null;
   daysLeft: number | null;
@@ -187,9 +181,6 @@ export function getNextPostOfficeDueInfo(investments: PostOfficeInvestment[]): {
   if (active.length === 0) {
     return { title: 'None', dateStr: null, daysLeft: null, status: null };
   }
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
 
   const candidates: Array<{
     title: string;
@@ -223,17 +214,19 @@ export function getNextPostOfficeDueInfo(investments: PostOfficeInvestment[]): {
     return { title: 'None', dateStr: null, daysLeft: null, status: null };
   }
 
-  candidates.sort((a, b) => new Date(a.dateStr).getTime() - new Date(b.dateStr).getTime());
+  candidates.sort((a, b) => {
+    const da = parseLocalDate(a.dateStr)?.getTime() || 0;
+    const db = parseLocalDate(b.dateStr)?.getTime() || 0;
+    return da - db;
+  });
 
   const earliest = candidates[0];
-  const targetDate = new Date(earliest.dateStr);
-  targetDate.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const diffDays = getDaysDiff(earliest.dateStr, referenceDate);
 
   return {
     title: earliest.title,
     dateStr: earliest.dateStr,
     daysLeft: diffDays,
-    status: getPostOfficeStatus(earliest.inv)
+    status: getPostOfficeStatus(earliest.inv, referenceDate)
   };
 }

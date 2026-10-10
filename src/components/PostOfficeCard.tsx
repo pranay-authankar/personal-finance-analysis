@@ -2,6 +2,7 @@ import React from 'react';
 import type { PostOfficeInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { maskAccountNumber, getPostOfficeStatus } from '../utils/postOfficeUiHelpers';
+import { useDateTime } from '../context/DateTimeContext';
 import {
   calculateMISMonthlyPayout,
   calculateSCSSQuarterlyPayout
@@ -18,7 +19,8 @@ export const PostOfficeCard: React.FC<PostOfficeCardProps> = ({
   onClick,
   isSelected
 }) => {
-  const statusInfo = getPostOfficeStatus(investment);
+  const { now } = useDateTime();
+  const statusInfo = getPostOfficeStatus(investment, now);
   const maskedAcc = maskAccountNumber(investment.accountNumber);
 
   const isTd = investment.schemeType === 'TD' || (investment.schemeType as string) === 'POTD';

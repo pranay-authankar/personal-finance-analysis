@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
 import { getFdStatus, getNextMaturityInfo } from '../utils/fdUiHelpers';
+import { getDaysDiff } from '../utils/dateUtils';
 import { FdCard } from '../components/FdCard';
 import { FdDetailsPanel } from '../components/FdDetailsPanel';
 import { FdFilterPopover, type FdFilterState } from '../components/FdFilterPopover';
@@ -22,6 +24,7 @@ interface FdDashboardPageProps {
 export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const { activeMember } = useInvestments();
+  const { now } = useDateTime();
 
   // Active (non-redeemed) FDs
   const rawFds = useMemo(() => {
@@ -95,8 +98,8 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
 
   // 2. Compact Overview: Next Maturity
   const nextMaturity = useMemo(() => {
-    return getNextMaturityInfo(rawFds);
-  }, [rawFds]);
+    return getNextMaturityInfo(rawFds, now);
+  }, [rawFds, now]);
 
   // Filtered FDs
   const filteredFds = useMemo(() => {
@@ -120,7 +123,7 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
     // Status filter
     if (filters.status !== 'all') {
       list = list.filter((f) => {
-        const st = getFdStatus(f.maturityDate, f.actualEndDate, f.status);
+        const st = getFdStatus(f.maturityDate, f.actualEndDate, f.status, now);
         if (filters.status === 'safe') return st.type === 'safe';
         if (filters.status === 'approaching') return st.type === 'approaching';
         if (filters.status === 'due') return st.type === 'due' || st.type === 'overdue';
@@ -142,14 +145,10 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
 
     // Maturity schedule filter
     if (filters.maturityRange !== 'all') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       list = list.filter((f) => {
         if (!f.maturityDate) return false;
-        const mat = new Date(f.maturityDate);
-        mat.setHours(0, 0, 0, 0);
-        const diffDays = Math.round((mat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const diffDays = getDaysDiff(f.maturityDate, now);
+        if (diffDays === null) return false;
 
         if (filters.maturityRange === 'next_30d') return diffDays <= 30;
         if (filters.maturityRange === 'next_90d') return diffDays <= 90;
@@ -172,10 +171,10 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
     }
 
     // Sort earliest maturity first by default
-    list.sort((a, b) => new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime());
+    list.sort((a, b) => (getDaysDiff(a.maturityDate, now) ?? 0) - (getDaysDiff(b.maturityDate, now) ?? 0));
 
     return list;
-  }, [rawFds, search, filters]);
+  }, [rawFds, search, filters, now]);
 
   const selectedFd = useMemo(() => {
     if (!selectedFdId) return null;

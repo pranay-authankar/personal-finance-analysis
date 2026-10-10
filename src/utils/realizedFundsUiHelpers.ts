@@ -1,3 +1,5 @@
+import { parseLocalDate } from './dateUtils';
+
 export interface RealizedTransaction {
   id: string; // payment_id
   a_id: string; // asset ID
@@ -109,12 +111,17 @@ export function matchesAmountRange(amount: number, range: RealizedFundsFilterSta
   return true;
 }
 
-export function matchesDateRange(dateStr: string, range: RealizedFundsFilterState['dateRange']): boolean {
+export function matchesDateRange(
+  dateStr: string,
+  range: RealizedFundsFilterState['dateRange'],
+  referenceDate: Date = new Date()
+): boolean {
   if (range === 'all' || !dateStr) return true;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return true;
+  const d = parseLocalDate(dateStr);
+  if (!d) return true;
 
-  const now = new Date();
+  const now = new Date(referenceDate);
+  now.setHours(0, 0, 0, 0);
   const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
 
   if (range === 'last_30_days') {

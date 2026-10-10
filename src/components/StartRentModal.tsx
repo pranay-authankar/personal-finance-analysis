@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PropertyRecord } from '../types';
 import { formatCurrency } from '../utils/calculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import { X, KeyRound, AlertCircle, Info, Check, Plus, Trash2, FileText, Upload, Loader2 } from 'lucide-react';
 import { uploadDocumentFile } from '../utils/fileUpload';
 
@@ -35,18 +36,18 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
   const [tenantContact, setTenantContact] = useState<string>('');
   const [rentAmount, setRentAmount] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [endDate, setEndDate] = useState<string>(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() + 1);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   });
   const [nextRentDueDate, setNextRentDueDate] = useState<string>(() => {
     const d = new Date();
     d.setMonth(d.getMonth() + 1);
     d.setDate(1);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   });
   const [notes, setNotes] = useState<string>('');
   const [documents, setDocuments] = useState<RentDocInput[]>([]);

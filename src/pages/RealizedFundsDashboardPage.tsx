@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import { csvDb } from '../services/csvDatabase';
 import { formatCurrency } from '../utils/calculations';
 import {
@@ -31,6 +32,7 @@ const SOURCE_TABS: RealizedFundsSourceTab[] = ['All', 'Asset Sales', 'Maturities
 
 export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
+  const { now } = useDateTime();
   const { activeMember, members, propertyPayments } = useInvestments();
 
   // Selected Transaction for Slide-over Details Panel
@@ -152,7 +154,7 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
 
     // Popover: Date Range filter
     if (filters.dateRange !== 'all') {
-      list = list.filter((t) => matchesDateRange(t.paymentDate, filters.dateRange));
+      list = list.filter((t) => matchesDateRange(t.paymentDate, filters.dateRange, now));
     }
 
     // Sorting
@@ -176,7 +178,7 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
     });
 
     return list;
-  }, [rawTransactions, activeTab, search, filters, sort]);
+  }, [rawTransactions, activeTab, search, filters, sort, now]);
 
   // 3. Three Compact Summary Cards (Derived from money actually received)
   const totalReceived = useMemo(() => {

@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
 import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { getEffectiveBullionValue } from '../utils/bullionCalculations';
+import { parseLocalDate } from '../utils/dateUtils';
 import {
   calculateNextMonthlyInterestDate,
   calculateNextQuarterlyInterestDate
@@ -31,6 +33,7 @@ import {
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { activeMember, getPortfolioSummary, calculatePropertyFinances } = useInvestments();
+  const { now, midnightTicker } = useDateTime();
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   if (!activeMember) return null;
@@ -68,7 +71,7 @@ export const HomePage: React.FC = () => {
     });
 
     return { totalReceivables: total, receivablesCount: count };
-  }, [activeMember, calculatePropertyFinances]);
+  }, [activeMember, calculatePropertyFinances, midnightTicker, now]);
 
   // 3. Upcoming Events (sorted by nearest date)
   const upcomingList = useMemo(() => {
@@ -85,7 +88,7 @@ export const HomePage: React.FC = () => {
     // FDs
     activeFds.forEach((f) => {
       if (f.maturityDate) {
-        const badge = getDeadlineClassification(f.maturityDate);
+        const badge = getDeadlineClassification(f.maturityDate, now);
         if (badge) {
           const calc = calculateFDValues(f.principal, f.interestRate, f.startDate, f.maturityDate);
           events.push({
@@ -116,10 +119,10 @@ export const HomePage: React.FC = () => {
       if (isRd) {
         // RD has regular monthly recurring deposits.
         // Track the next installment due date, never the 5-year (60/61-month) maturity date!
-        const nextDate = p.nextDepositDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate) : '');
+        const nextDate = p.nextDepositDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate, now) : '');
         const amount = p.upcomingDepositAmount || p.monthlyDeposit || (p as any).monthlyInstallment || 0;
         if (nextDate) {
-          const badge = getDeadlineClassification(nextDate);
+          const badge = getDeadlineClassification(nextDate, now);
           if (badge) {
             events.push({
               id: `po_dep_${p.id}`,
@@ -133,7 +136,7 @@ export const HomePage: React.FC = () => {
           }
         } else if (p.maturityDate && (p.depositsMadeCount || 0) >= 60) {
           // All 60 deposits completed, waiting for maturity
-          const badge = getDeadlineClassification(p.maturityDate);
+          const badge = getDeadlineClassification(p.maturityDate, now);
           if (badge) {
             events.push({
               id: `po_mat_${p.id}`,
@@ -148,10 +151,10 @@ export const HomePage: React.FC = () => {
         }
       } else if (isMis) {
         // MIS pays monthly interest
-        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate) : '');
+        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate, now) : '');
         const amount = p.expectedMonthlyInterest || p.monthlyPayout || 0;
         if (nextDate) {
-          const badge = getDeadlineClassification(nextDate);
+          const badge = getDeadlineClassification(nextDate, now);
           if (badge) {
             events.push({
               id: `po_int_${p.id}`,
@@ -166,10 +169,10 @@ export const HomePage: React.FC = () => {
         }
       } else if (isScss) {
         // SCSS pays quarterly interest
-        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextQuarterlyInterestDate(p.openingDate) : '');
+        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextQuarterlyInterestDate(p.openingDate, now) : '');
         const amount = p.expectedQuarterlyInterest || p.quarterlyPayout || 0;
         if (nextDate) {
-          const badge = getDeadlineClassification(nextDate);
+          const badge = getDeadlineClassification(nextDate, now);
           if (badge) {
             events.push({
               id: `po_int_${p.id}`,
@@ -185,7 +188,7 @@ export const HomePage: React.FC = () => {
       } else {
         // Term Deposits (TD)
         if (p.maturityDate) {
-          const badge = getDeadlineClassification(p.maturityDate);
+          const badge = getDeadlineClassification(p.maturityDate, now);
           if (badge) {
             events.push({
               id: `po_mat_${p.id}`,
@@ -204,7 +207,7 @@ export const HomePage: React.FC = () => {
     // Bullions
     activeBul.forEach((b) => {
       if (b.paymentDueDate && (b.remainingPayment || 0) > 0) {
-        const badge = getDeadlineClassification(b.paymentDueDate);
+        const badge = getDeadlineClassification(b.paymentDueDate, now);
         if (badge) {
           events.push({
             id: `bul_${b.id}`,
@@ -223,7 +226,7 @@ export const HomePage: React.FC = () => {
     (activeMember.properties || []).forEach((p) => {
       const fin = calculatePropertyFinances(p.p_id);
       if (p.payment_deadline && fin.paymentLeft > 0) {
-        const badge = getDeadlineClassification(p.payment_deadline);
+        const badge = getDeadlineClassification(p.payment_deadline, now);
         if (badge) {
           events.push({
             id: `prop_pay_${p.p_id}`,
@@ -237,7 +240,7 @@ export const HomePage: React.FC = () => {
         }
       }
       if (fin.saleReceivableLeft > 0 && fin.nextDueDate) {
-        const badge = getDeadlineClassification(fin.nextDueDate);
+        const badge = getDeadlineClassification(fin.nextDueDate, now);
         if (badge) {
           events.push({
             id: `prop_rec_${p.p_id}`,
@@ -255,7 +258,7 @@ export const HomePage: React.FC = () => {
     // Rents
     (activeMember.rents || []).forEach((r) => {
       if (r.next_rent_due && Number(r.rent_amount) > 0) {
-        const badge = getDeadlineClassification(r.next_rent_due);
+        const badge = getDeadlineClassification(r.next_rent_due, now);
         if (badge) {
           events.push({
             id: `rent_${r.r_id}`,
@@ -270,9 +273,9 @@ export const HomePage: React.FC = () => {
       }
     });
 
-    events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    events.sort((a, b) => (parseLocalDate(a.date)?.getTime() || 0) - (parseLocalDate(b.date)?.getTime() || 0));
     return events;
-  }, [activeFds, activePos, activeBul, activeMember, calculatePropertyFinances]);
+  }, [activeFds, activePos, activeBul, activeMember, calculatePropertyFinances, midnightTicker, now]);
 
   // 4. Recent Activity (Meaningful transactions only)
   const recentActivityList = useMemo(() => {
@@ -346,7 +349,7 @@ export const HomePage: React.FC = () => {
       }
     });
 
-    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    list.sort((a, b) => (parseLocalDate(b.date)?.getTime() || 0) - (parseLocalDate(a.date)?.getTime() || 0));
     return list.slice(0, 5);
   }, [activeMember]);
 

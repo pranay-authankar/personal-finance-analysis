@@ -4,6 +4,7 @@ import type { PropertyRecord, PropertyType } from '../types';
 import { normalizePropertyType, AREA_UNITS, parseAreaAndUnit, convertAreaToSqft } from '../utils/realEstateUiHelpers';
 import { formatCurrency } from '../utils/calculations';
 import { uploadDocumentFile } from '../utils/fileUpload';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   X,
   Building,
@@ -120,7 +121,7 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
       setRentNotes('');
       setDocuments([]);
     } else {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getLocalDateString();
       setPType('LAND');
       setName('');
       setLocation('');
@@ -285,7 +286,7 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
           purchase_price: numPrice,
           party_name: partyName.trim(),
           party_contact: partyContact.trim(),
-          purchase_date: purchaseDate || new Date().toISOString().split('T')[0],
+          purchase_date: purchaseDate || getLocalDateString(),
           p_notes: notes.trim(),
           initial_payment: numInitial > 0 ? numInitial : undefined,
           payment_deadline: paymentDeadline || undefined
@@ -299,8 +300,8 @@ export const AddPropertyModal: React.FC<AddPropertyModalProps> = ({
           tenant_name: tenantName.trim(),
           tenant_contact: tenantContact.trim(),
           rent_amount: Number(rentAmount),
-          rent_start_date: rentStartDate || purchaseDate || new Date().toISOString().split('T')[0],
-          next_rent_due: nextRentDue || purchaseDate || new Date().toISOString().split('T')[0],
+          rent_start_date: rentStartDate || purchaseDate || getLocalDateString(),
+          next_rent_due: nextRentDue || purchaseDate || getLocalDateString(),
           r_notes: rentNotes.trim()
         });
       }

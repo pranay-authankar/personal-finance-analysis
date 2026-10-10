@@ -18,18 +18,16 @@ export const NO_DUE_DATE_CONFIG = {
   textDark: '#6D28D9'
 };
 
-export function getDeadlineClassification(deadlineDateStr?: string): DeadlineClassification | null {
+import { getDaysDiff, getLocalDateString, parseLocalDate } from './dateUtils';
+
+export function getDeadlineClassification(
+  deadlineDateStr?: string,
+  referenceDate: Date = new Date()
+): DeadlineClassification | null {
   if (!deadlineDateStr) return null;
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const deadline = new Date(deadlineDateStr);
-  if (isNaN(deadline.getTime())) return null;
-  deadline.setHours(0, 0, 0, 0);
-
-  const diffMs = deadline.getTime() - today.getTime();
-  const daysLeft = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const daysLeft = getDaysDiff(deadlineDateStr, referenceDate);
+  if (daysLeft === null) return null;
 
   if (daysLeft < 0) {
     const overdueDays = Math.abs(daysLeft);
@@ -120,8 +118,9 @@ export function getPropertyColorMarker(params: {
   paymentLeft: number;
   nextDueDate?: string;
   paymentDeadline?: string;
+  referenceDate?: Date;
 }): PropertyColorMarker {
-  const { isSold, purchasePrice, paymentLeft, nextDueDate, paymentDeadline } = params;
+  const { isSold, purchasePrice, paymentLeft, nextDueDate, paymentDeadline, referenceDate } = params;
 
   if (isSold) {
     return {
@@ -148,7 +147,7 @@ export function getPropertyColorMarker(params: {
   // Check deadline (from payment record nextDueDate or property paymentDeadline)
   const effectiveDeadline = nextDueDate || paymentDeadline;
   if (effectiveDeadline && paymentLeft > 0) {
-    const classification = getDeadlineClassification(effectiveDeadline);
+    const classification = getDeadlineClassification(effectiveDeadline, referenceDate);
     if (classification) {
       return {
         color: classification.hexColor,
@@ -278,8 +277,7 @@ export const SOLD_CATEGORY_CONFIG = {
  * Calculates deadline date based on a start date and tenure in months and days.
  */
 export function calculateDeadlineDate(startDateStr: string, months: number, days: number): string {
-  const base = new Date(startDateStr || new Date().toISOString().split('T')[0]);
-  if (isNaN(base.getTime())) return '';
+  const base = parseLocalDate(startDateStr) || new Date();
   const result = new Date(base.getTime());
   if (months > 0) {
     result.setMonth(result.getMonth() + Number(months));
@@ -287,7 +285,7 @@ export function calculateDeadlineDate(startDateStr: string, months: number, days
   if (days > 0) {
     result.setDate(result.getDate() + Number(days));
   }
-  return result.toISOString().split('T')[0];
+  return getLocalDateString(result);
 }
 
 /**
@@ -295,9 +293,9 @@ export function calculateDeadlineDate(startDateStr: string, months: number, days
  */
 export function calculateTenureFromDates(startDateStr: string, deadlineDateStr: string): { months: number; days: number; text: string } {
   if (!startDateStr || !deadlineDateStr) return { months: 0, days: 0, text: '' };
-  const start = new Date(startDateStr);
-  const end = new Date(deadlineDateStr);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return { months: 0, days: 0, text: '' };
+  const start = parseLocalDate(startDateStr);
+  const end = parseLocalDate(deadlineDateStr);
+  if (!start || !end) return { months: 0, days: 0, text: '' };
 
   const diffMs = end.getTime() - start.getTime();
   if (diffMs <= 0) return { months: 0, days: 0, text: 'Immediate / 0 days' };

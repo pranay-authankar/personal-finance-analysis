@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import type { FixedDeposit } from '../types';
 import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
 import { getFdStatus } from '../utils/fdUiHelpers';
@@ -34,12 +35,13 @@ export const FdDetailsPanel: React.FC<FdDetailsPanelProps> = ({
 }) => {
   const navigate = useNavigate();
   const { deleteFd } = useInvestments();
+  const { now } = useDateTime();
 
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isRealizeModalOpen, setIsRealizeModalOpen] = useState(false);
   const [copiedAcc, setCopiedAcc] = useState(false);
 
-  const statusInfo = getFdStatus(fd.maturityDate, fd.actualEndDate, fd.status);
+  const statusInfo = getFdStatus(fd.maturityDate, fd.actualEndDate, fd.status, now);
   const calc = calculateFDValues(fd.principal, fd.interestRate, fd.startDate, fd.maturityDate);
 
   const isRedeemed = Boolean(fd.status === 'redeemed' || fd.actualEndDate);

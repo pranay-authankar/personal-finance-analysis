@@ -1,4 +1,5 @@
 import type { FDCalculation } from '../types';
+import { parseLocalDate, formatDate as formatLocalDate } from './dateUtils';
 
 /**
  * Standard Indian Banking Interest Calculation
@@ -24,8 +25,18 @@ export function calculateFDValues(
     };
   }
 
-  const start = new Date(startDateStr);
-  const maturity = new Date(maturityDateStr);
+  const start = parseLocalDate(startDateStr);
+  const maturity = parseLocalDate(maturityDateStr);
+
+  if (!start || !maturity) {
+    return {
+      principal: P,
+      maturityAmount: P,
+      interestEarned: 0,
+      tenureDays: 0,
+      tenureFormatted: '-'
+    };
+  }
 
   const diffMs = maturity.getTime() - start.getTime();
   const tenureDays = Math.max(0, Math.round(diffMs / (1000 * 60 * 60 * 24)));
@@ -74,16 +85,5 @@ export function formatCurrency(num: number | null | undefined): string {
 }
 
 export function formatDate(dateStr: string): string {
-  if (!dateStr) return '-';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  } catch {
-    return dateStr;
-  }
+  return formatLocalDate(dateStr);
 }

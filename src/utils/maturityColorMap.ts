@@ -1,4 +1,5 @@
 import type { MaturityClassification } from '../types';
+import { getDaysDiff } from './dateUtils';
 
 /**
  * FD Maturity Colour Map Classifier:
@@ -8,15 +9,11 @@ import type { MaturityClassification } from '../types';
  * Level 4: 1 - 2 Years (Extended Term)     -> Soft Warm Gold (#EAB308)
  * Level 5: > 2 Years (Long Term)           -> Calm Sky Slate (#38BDF8)
  */
-export function getMaturityClassification(maturityDateStr: string): MaturityClassification {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const matDate = new Date(maturityDateStr);
-  matDate.setHours(0, 0, 0, 0);
-
-  const diffMs = matDate.getTime() - today.getTime();
-  const daysLeft = Math.round(diffMs / (1000 * 60 * 60 * 24));
+export function getMaturityClassification(
+  maturityDateStr: string,
+  referenceDate: Date = new Date()
+): MaturityClassification {
+  const daysLeft = getDaysDiff(maturityDateStr, referenceDate) ?? 0;
 
   if (daysLeft < 0) {
     return {

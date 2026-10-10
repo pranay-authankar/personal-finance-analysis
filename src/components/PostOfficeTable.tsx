@@ -3,6 +3,7 @@ import type { PostOfficeInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { getMaturityClassification } from '../utils/maturityColorMap';
 import { SCHEME_METADATA } from '../utils/postOfficeCalculations';
+import { useDateTime } from '../context/DateTimeContext';
 import { Image as ImageIcon } from 'lucide-react';
 
 interface PostOfficeTableProps {
@@ -11,6 +12,8 @@ interface PostOfficeTableProps {
 }
 
 export const PostOfficeTable: React.FC<PostOfficeTableProps> = ({ investments, onSelect }) => {
+  const { now } = useDateTime();
+
   return (
     <div className="fd-table-wrapper">
       <table className="fd-desktop-table">
@@ -28,7 +31,7 @@ export const PostOfficeTable: React.FC<PostOfficeTableProps> = ({ investments, o
         </thead>
         <tbody>
           {investments.map((inv) => {
-            const mat = getMaturityClassification(inv.maturityDate);
+            const mat = getMaturityClassification(inv.maturityDate, now);
             const meta = SCHEME_METADATA[inv.schemeType] || {
               icon: '📮',
               shortName: inv.schemeType

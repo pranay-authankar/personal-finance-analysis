@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { getPostOfficeStatus, getNextPostOfficeDueInfo } from '../utils/postOfficeUiHelpers';
+import { getDaysDiff } from '../utils/dateUtils';
 import { PostOfficeCard } from '../components/PostOfficeCard';
 import { PostOfficeDetailsPanel } from '../components/PostOfficeDetailsPanel';
 import { PostOfficeFilterPopover, type PostOfficeFilterState } from '../components/PostOfficeFilterPopover';
@@ -22,6 +24,7 @@ interface PostOfficeDashboardPageProps {
 export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
   const { activeMember } = useInvestments();
+  const { now } = useDateTime();
 
   // Active (non-closed/non-redeemed) investments
   const rawInvestments = useMemo(() => {
@@ -74,8 +77,8 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
 
   // 2. Compact Overview: Next Due
   const nextDueInfo = useMemo(() => {
-    return getNextPostOfficeDueInfo(rawInvestments);
-  }, [rawInvestments]);
+    return getNextPostOfficeDueInfo(rawInvestments, now);
+  }, [rawInvestments, now]);
 
   // Filtering
   const filteredInvestments = useMemo(() => {
@@ -110,7 +113,7 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
     // Filter Popover: Status
     if (filters.status !== 'all') {
       list = list.filter((i) => {
-        const st = getPostOfficeStatus(i);
+        const st = getPostOfficeStatus(i, now);
         if (filters.status === 'safe') return st.type === 'safe';
         if (filters.status === 'approaching') return st.type === 'approaching' || st.type === 'pending';
         if (filters.status === 'due') return st.type === 'due' || st.type === 'overdue';
@@ -133,14 +136,10 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
 
     // Filter Popover: Maturity Range
     if (filters.maturityRange !== 'all') {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
       list = list.filter((i) => {
         if (!i.maturityDate) return false;
-        const mat = new Date(i.maturityDate);
-        mat.setHours(0, 0, 0, 0);
-        const diffDays = Math.round((mat.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const diffDays = getDaysDiff(i.maturityDate, now);
+        if (diffDays === null) return false;
 
         if (filters.maturityRange === 'next_30d') return diffDays <= 30;
         if (filters.maturityRange === 'next_90d') return diffDays <= 90;
@@ -152,10 +151,10 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
     }
 
     // Default sort by maturity date ascending
-    list.sort((a, b) => new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime());
+    list.sort((a, b) => (getDaysDiff(a.maturityDate, now) ?? 0) - (getDaysDiff(b.maturityDate, now) ?? 0));
 
     return list;
-  }, [rawInvestments, selectedSchemeTab, search, filters]);
+  }, [rawInvestments, selectedSchemeTab, search, filters, now]);
 
   const selectedInvestment = useMemo(() => {
     if (!selectedPoId) return null;

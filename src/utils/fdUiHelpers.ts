@@ -1,4 +1,5 @@
 import type { FixedDeposit } from '../types';
+import { getDaysDiff, parseLocalDate } from './dateUtils';
 
 /**
  * Masks bank account number to show only the last 4 digits for privacy.
@@ -35,7 +36,8 @@ export interface FdStatusIndicator {
 export function getFdStatus(
   maturityDateStr: string,
   actualEndDate?: string,
-  status?: string
+  status?: string,
+  referenceDate: Date = new Date()
 ): FdStatusIndicator {
   if (status === 'redeemed' || (actualEndDate && actualEndDate.trim() !== '')) {
     return {
@@ -48,14 +50,7 @@ export function getFdStatus(
     };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const matDate = new Date(maturityDateStr);
-  matDate.setHours(0, 0, 0, 0);
-
-  const diffMs = matDate.getTime() - today.getTime();
-  const daysLeft = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const daysLeft = getDaysDiff(maturityDateStr, referenceDate) ?? 0;
 
   if (daysLeft < 0) {
     return {
@@ -108,7 +103,10 @@ export function getFdStatus(
 /**
  * Finds the earliest upcoming maturity from a list of active FDs.
  */
-export function getNextMaturityInfo(fds: FixedDeposit[]): {
+export function getNextMaturityInfo(
+  fds: FixedDeposit[],
+  referenceDate: Date = new Date()
+): {
   dateStr: string | null;
   daysLeft: number | null;
   status: FdStatusIndicator | null;
@@ -118,22 +116,19 @@ export function getNextMaturityInfo(fds: FixedDeposit[]): {
     return { dateStr: null, daysLeft: null, status: null };
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Sort by maturity date ascending
-  const sorted = [...activeFds].sort(
-    (a, b) => new Date(a.maturityDate).getTime() - new Date(b.maturityDate).getTime()
-  );
+  // Sort by maturity date ascending safely
+  const sorted = [...activeFds].sort((a, b) => {
+    const da = parseLocalDate(a.maturityDate)?.getTime() || 0;
+    const db = parseLocalDate(b.maturityDate)?.getTime() || 0;
+    return da - db;
+  });
 
   const next = sorted[0];
-  const nextDate = new Date(next.maturityDate);
-  nextDate.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const diffDays = getDaysDiff(next.maturityDate, referenceDate);
 
   return {
     dateStr: next.maturityDate,
     daysLeft: diffDays,
-    status: getFdStatus(next.maturityDate, next.actualEndDate, next.status)
+    status: getFdStatus(next.maturityDate, next.actualEndDate, next.status, referenceDate)
   };
 }

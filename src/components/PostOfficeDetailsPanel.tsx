@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import type { PostOfficeInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { getPostOfficeStatus } from '../utils/postOfficeUiHelpers';
@@ -42,12 +43,13 @@ export const PostOfficeDetailsPanel: React.FC<PostOfficeDetailsPanelProps> = ({
 }) => {
   const navigate = useNavigate();
   const { deletePostOffice } = useInvestments();
+  const { now } = useDateTime();
 
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [isRealizeModalOpen, setIsRealizeModalOpen] = useState(false);
   const [copiedAcc, setCopiedAcc] = useState(false);
 
-  const statusInfo = getPostOfficeStatus(investment);
+  const statusInfo = getPostOfficeStatus(investment, now);
 
   const isTd = investment.schemeType === 'TD' || (investment.schemeType as string) === 'POTD';
   const isMis = investment.schemeType === 'MIS';

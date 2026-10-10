@@ -4,6 +4,7 @@ import { useInvestments } from '../context/InvestmentContext';
 import type { RealizedReason, RealizedSourceCategory } from '../types';
 import { calculateFDValues, formatCurrency } from '../utils/calculations';
 import { getEffectiveBullionValue } from '../utils/bullionCalculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import { ChevronLeft, Save, Wallet, Layers } from 'lucide-react';
 
 interface AddRealizedFundPageProps {
@@ -33,7 +34,7 @@ export const AddRealizedFundPage: React.FC<AddRealizedFundPageProps> = ({ onShow
   const [sourceName, setSourceName] = useState<string>('');
   const [reason, setReason] = useState<RealizedReason>('Matured');
   const [dateReceived, setDateReceived] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [remarks, setRemarks] = useState<string>('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -68,7 +69,7 @@ export const AddRealizedFundPage: React.FC<AddRealizedFundPageProps> = ({ onShow
         setSourceName(`FD — ${fd.bankName} (${fd.accountNumber || 'A/C'})`);
         setAmount(String(calc.maturityAmount));
         setReason('Matured');
-        setDateReceived(new Date().toISOString().split('T')[0]);
+        setDateReceived(getLocalDateString());
         setRemarks(`Matured from FD at ${fd.bankName}. Principal ₹${formatCurrency(fd.principal)} + Interest ₹${formatCurrency(calc.interestEarned)}`);
       }
     } else if (type === 'po') {
@@ -79,7 +80,7 @@ export const AddRealizedFundPage: React.FC<AddRealizedFundPageProps> = ({ onShow
         setSourceName(`Post Office — ${po.schemeName}`);
         setAmount(String(matAmount));
         setReason('Matured');
-        setDateReceived(new Date().toISOString().split('T')[0]);
+        setDateReceived(getLocalDateString());
         setRemarks(`Tenure completed for ${po.schemeName} (${po.accountNumber})`);
       }
     } else if (type === 'bul') {
@@ -90,7 +91,7 @@ export const AddRealizedFundPage: React.FC<AddRealizedFundPageProps> = ({ onShow
         setSourceName(`${bul.typeName} — ${bul.itemName}`);
         setAmount(val > 0 ? String(val) : '');
         setReason('Sold');
-        setDateReceived(new Date().toISOString().split('T')[0]);
+        setDateReceived(getLocalDateString());
         setRemarks(`Sold ${bul.typeName} ${bul.weightDisplay ? `(${bul.weightDisplay})` : ''}`);
       }
     }

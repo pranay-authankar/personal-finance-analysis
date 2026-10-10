@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PropertyRecord, PaymentStatus } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import { X, Tag, AlertCircle, Check, Plus, Trash2, FileText, CheckCircle2, Clock, Upload, Loader2 } from 'lucide-react';
 import { uploadDocumentFile } from '../utils/fileUpload';
 
@@ -36,7 +37,7 @@ export const SellPropertyModal: React.FC<SellPropertyModalProps> = ({
     property.purchase_price ? String(property.purchase_price) : ''
   );
   const [saleDate, setSaleDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [dueDate, setDueDate] = useState<string>('');
   const [amountReceived, setAmountReceived] = useState<string>(

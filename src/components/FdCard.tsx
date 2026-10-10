@@ -2,6 +2,7 @@ import React from 'react';
 import type { FixedDeposit } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { maskAccountNumber, getFdStatus } from '../utils/fdUiHelpers';
+import { useDateTime } from '../context/DateTimeContext';
 
 interface FdCardProps {
   fd: FixedDeposit;
@@ -10,7 +11,8 @@ interface FdCardProps {
 }
 
 export const FdCard: React.FC<FdCardProps> = ({ fd, onClick, isSelected }) => {
-  const statusInfo = getFdStatus(fd.maturityDate, fd.actualEndDate, fd.status);
+  const { now } = useDateTime();
+  const statusInfo = getFdStatus(fd.maturityDate, fd.actualEndDate, fd.status, now);
   const maskedAcc = maskAccountNumber(fd.accountNumber);
 
   return (

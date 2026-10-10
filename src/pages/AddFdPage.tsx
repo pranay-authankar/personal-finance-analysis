@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { calculateFDValues, formatCurrency } from '../utils/calculations';
 import { uploadDocumentFile } from '../utils/fileUpload';
+import { getLocalDateString, parseLocalDate } from '../utils/dateUtils';
 import {
   ChevronLeft,
   Save,
@@ -43,11 +44,11 @@ export const AddFdPage: React.FC<AddFdPageProps> = ({ onShowToast }) => {
   const [accountNumber, setAccountNumber] = useState('');
   const [principal, setPrincipal] = useState<number | ''>(500000);
   const [interestRate, setInterestRate] = useState<number | ''>(7.25);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => getLocalDateString());
   const [maturityDate, setMaturityDate] = useState(() => {
     const d = new Date();
     d.setFullYear(d.getFullYear() + 1);
-    return d.toISOString().split('T')[0];
+    return getLocalDateString(d);
   });
   const [actualEndDate, setActualEndDate] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string>('');
@@ -108,10 +109,10 @@ export const AddFdPage: React.FC<AddFdPageProps> = ({ onShowToast }) => {
 
   // Quick tenure helper
   const applyTenure = (monthsCount: number) => {
-    const start = startDate ? new Date(startDate) : new Date();
+    const start = parseLocalDate(startDate) || new Date();
     const mat = new Date(start);
     mat.setMonth(mat.getMonth() + monthsCount);
-    setMaturityDate(mat.toISOString().split('T')[0]);
+    setMaturityDate(getLocalDateString(mat));
   };
 
   // Live calculation preview

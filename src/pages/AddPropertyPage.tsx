@@ -5,6 +5,7 @@ import type { PropertyType } from '../types';
 import { normalizePropertyType, AREA_UNITS, parseAreaAndUnit, convertAreaToSqft } from '../utils/realEstateUiHelpers';
 import { formatCurrency } from '../utils/calculations';
 import { uploadDocumentFile } from '../utils/fileUpload';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   ChevronLeft,
   Building,
@@ -59,7 +60,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
   const [partyName, setPartyName] = useState('');
   const [partyContact, setPartyContact] = useState('');
   const [purchaseDate, setPurchaseDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [notes, setNotes] = useState('');
 
@@ -76,7 +77,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
   const [tenantName, setTenantName] = useState('');
   const [tenantContact, setTenantContact] = useState('');
   const [rentAmount, setRentAmount] = useState('');
-  const [rentStartDate, setRentStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [rentStartDate, setRentStartDate] = useState(getLocalDateString());
   const [nextRentDue, setNextRentDue] = useState('');
   const [rentNotes, setRentNotes] = useState('');
 
@@ -231,7 +232,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
           purchase_price: numPrice,
           party_name: partyName.trim(),
           party_contact: partyContact.trim(),
-          purchase_date: purchaseDate || new Date().toISOString().split('T')[0],
+          purchase_date: purchaseDate || getLocalDateString(),
           p_notes: notes.trim(),
           initial_payment: numInitial > 0 ? numInitial : undefined,
           payment_deadline: paymentDeadline || undefined
@@ -244,8 +245,8 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
           tenant_name: tenantName.trim(),
           tenant_contact: tenantContact.trim(),
           rent_amount: Number(rentAmount),
-          rent_start_date: rentStartDate || purchaseDate || new Date().toISOString().split('T')[0],
-          next_rent_due: nextRentDue || purchaseDate || new Date().toISOString().split('T')[0],
+          rent_start_date: rentStartDate || purchaseDate || getLocalDateString(),
+          next_rent_due: nextRentDue || purchaseDate || getLocalDateString(),
           r_notes: rentNotes.trim()
         });
       }

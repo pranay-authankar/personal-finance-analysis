@@ -12,6 +12,7 @@ import {
   calculateRDMaturity,
   getDefaultMaturityDateForScheme
 } from '../utils/postOfficeCalculations';
+import { getLocalDateString } from '../utils/dateUtils';
 import {
   ChevronLeft,
   Save,
@@ -38,11 +39,9 @@ export const AddPostOfficePage: React.FC<AddPostOfficePageProps> = ({ onShowToas
   // Shared inputs
   const [accountNumber, setAccountNumber] = useState('');
   const [interestRate, setInterestRate] = useState<number | ''>(7.50);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => getLocalDateString());
   const [maturityDate, setMaturityDate] = useState(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() + 5);
-    return d.toISOString().split('T')[0];
+    return getDefaultMaturityDateForScheme('TD', getLocalDateString(), 5);
   });
   const [actualEndDate, setActualEndDate] = useState<string>('');
   const [photoUrl, setPhotoUrl] = useState<string>('');

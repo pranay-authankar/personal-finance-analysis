@@ -8,6 +8,7 @@ import {
   formatPropertyArea
 } from '../utils/realEstateUiHelpers';
 import { getPropertyColorMarker } from '../utils/deadlinesColorMap';
+import { useDateTime } from '../context/DateTimeContext';
 import { MapPin, AlertCircle, Calendar, Clock } from 'lucide-react';
 
 interface RealEstateCardProps {
@@ -30,6 +31,7 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
   isSelected = false,
   onClick
 }) => {
+  const { now } = useDateTime();
   const category = getRealEstateCategory(property);
   const theme = getRealEstateCategoryTheme(category);
   const isIncomplete = isPropertyIncomplete(property);
@@ -45,7 +47,8 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
     totalPurchasePaid,
     paymentLeft,
     nextDueDate: finances?.nextDueDate,
-    paymentDeadline: property.payment_deadline
+    paymentDeadline: property.payment_deadline,
+    referenceDate: now
   });
 
   const isFullyPaid = !isSold && price > 0 && paymentLeft <= 0;

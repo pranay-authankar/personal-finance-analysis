@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import { useDateTime } from '../context/DateTimeContext';
 import type { PropertyRecord } from '../types';
 import { formatCurrency } from '../utils/calculations';
 import {
@@ -30,6 +31,7 @@ const CATEGORY_TABS: RealEstateCategoryTab[] = ['All', 'Land', 'Commercial', 'Pr
 
 export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = ({ onShowToast }) => {
   const navigate = useNavigate();
+  const { now, midnightTicker } = useDateTime();
   const {
     activeMember,
     properties: allProperties,
@@ -229,7 +231,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
     }
 
     return list;
-  }, [properties, activeTab, search, filters, sort, calculatePropertyFinances, getActiveRentForProperty]);
+  }, [properties, activeTab, search, filters, sort, calculatePropertyFinances, getActiveRentForProperty, midnightTicker, now]);
 
   const selectedProperty = useMemo(() => {
     if (!selectedPropertyId) return null;

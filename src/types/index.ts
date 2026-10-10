@@ -2,6 +2,8 @@
 // Fixed Database Structure for V1 (CSV Tables: family_members, assets, fds, post_office, bullions, properties, rents, asset_sales, payments, documents)
 // ============================================================================
 
+import { parseLocalDate, getLocalDateString } from '../utils/dateUtils';
+
 export type PropertyType =
   | 'LAND'
   | 'COMMERCIAL_PROPERTY'
@@ -216,10 +218,18 @@ export interface FixedDeposit {
   realizedFundId?: string;
 }
 
-export function fdRecordToFixedDeposit(f: FdRecord, docLink?: string): FixedDeposit {
+export function fdRecordToFixedDeposit(
+  f: FdRecord,
+  docLink?: string,
+  referenceDate: Date = new Date()
+): FixedDeposit {
   const isRedeemed = Boolean(f.actual_end_date && f.actual_end_date.trim() !== '');
   const maturity = f.maturity_date || f.end_date || '';
-  const isMatured = !isRedeemed && Boolean(maturity) && new Date(maturity) <= new Date();
+  const parsedMat = parseLocalDate(maturity);
+  const refMidnight = new Date(referenceDate);
+  refMidnight.setHours(0, 0, 0, 0);
+
+  const isMatured = !isRedeemed && Boolean(parsedMat) && parsedMat!.getTime() <= refMidnight.getTime();
   const status: 'active' | 'matured' | 'redeemed' = isRedeemed
     ? 'redeemed'
     : isMatured
@@ -253,7 +263,7 @@ export function fixedDepositToFdRecord(fd: FixedDeposit): FdRecord {
     maturity_date: fd.maturityDate,
     actual_end_date:
       fd.actualEndDate ||
-      (fd.status === 'redeemed' ? new Date().toISOString().split('T')[0] : '')
+      (fd.status === 'redeemed' ? getLocalDateString() : '')
   };
 }
 

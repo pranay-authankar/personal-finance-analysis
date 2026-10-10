@@ -17,6 +17,7 @@ import type {
   DocumentRecord,
   ContributionRecord
 } from '../types';
+import { getLocalDateString, isDateOverdue, parseLocalDate } from '../utils/dateUtils';
 
 export type {
   FamilyMemberRecord,
@@ -705,7 +706,7 @@ export class CsvDatabaseService {
   // Derived Calculations (Section 4 Requirements)
   // ============================================================================
 
-  public calculatePropertyFinances(p_id: string) {
+  public calculatePropertyFinances(p_id: string, referenceDate: Date = new Date()) {
     const prop = this.properties.find((p) => p.p_id === p_id);
     const asset = prop ? this.assets.find((a) => a.a_id === prop.a_id) : undefined;
     const a_id = prop?.a_id || '';
@@ -745,7 +746,7 @@ export class CsvDatabaseService {
     );
 
     pendingPayments.sort(
-      (a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+      (a, b) => (parseLocalDate(a.due_date)?.getTime() || 0) - (parseLocalDate(b.due_date)?.getTime() || 0)
     );
 
     const isSold = asset?.asset_status === 'SOLD';
@@ -754,13 +755,7 @@ export class CsvDatabaseService {
       nextDueDate = sale.payment_due_date;
     }
 
-    const isOverdue = nextDueDate
-      ? (() => {
-          const due = new Date(nextDueDate);
-          due.setHours(23, 59, 59, 999);
-          return due < new Date();
-        })()
-      : false;
+    const isOverdue = nextDueDate ? isDateOverdue(nextDueDate, referenceDate) : false;
 
     let paymentStatus: 'completed' | 'pending' | 'missed' = 'completed';
 
@@ -791,8 +786,8 @@ export class CsvDatabaseService {
   }
 
   // Active rent: rent where rent_end_date is empty or in future
-  public getActiveRentForProperty(p_id: string): RentRecord | undefined {
-    const today = new Date().toISOString().split('T')[0];
+  public getActiveRentForProperty(p_id: string, referenceDate: Date = new Date()): RentRecord | undefined {
+    const today = getLocalDateString(referenceDate);
     const rentsForProp = this.rents.filter((r) => r.p_id === p_id);
     return rentsForProp.find((r) => !r.rent_end_date || r.rent_end_date >= today);
   }
