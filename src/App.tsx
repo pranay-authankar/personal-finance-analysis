@@ -136,7 +136,7 @@ const AppContent: React.FC = () => {
           path="/bullions"
           element={
             <ProtectedRoute>
-              <BullionsDashboardPage />
+              <BullionsDashboardPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />
@@ -164,7 +164,7 @@ const AppContent: React.FC = () => {
           path="/real-estate"
           element={
             <ProtectedRoute>
-              <RealEstateDashboardPage />
+              <RealEstateDashboardPage onShowToast={showToast} />
             </ProtectedRoute>
           }
         />

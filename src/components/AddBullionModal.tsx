@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
+import type { BullionInvestment } from '../types';
 import { convertToGrams } from '../utils/bullionCalculations';
 import { uploadDocumentFile } from '../utils/fileUpload';
 import {
-  ChevronLeft,
-  Coins,
+  X,
   Upload,
+  Coins,
   Trash2,
   FileText
 } from 'lucide-react';
 
-interface AddBullionPageProps {
+interface AddBullionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  bullionToEdit?: BullionInvestment | null;
   onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
+  onSaved?: (saved: BullionInvestment) => void;
 }
 
 const TYPE_SUGGESTIONS = [
@@ -25,15 +29,16 @@ const TYPE_SUGGESTIONS = [
   { label: 'Platinum 950', category: 'Other' }
 ];
 
-export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const editId = searchParams.get('edit');
+export const AddBullionModal: React.FC<AddBullionModalProps> = ({
+  isOpen,
+  onClose,
+  bullionToEdit,
+  onShowToast,
+  onSaved
+}) => {
+  const { addOrUpdateBullion } = useInvestments();
 
-  const { activeMember, addOrUpdateBullion, getBullionById } = useInvestments();
-
-  // Form Fields
-  const [type, setType] = useState<string>('Gold 24K');
+  const [type, setType] = useState('Gold 24K');
   const [itemName, setItemName] = useState('');
   const [weight, setWeight] = useState<string>('');
   const [weightUnit, setWeightUnit] = useState<string>('g');
@@ -44,52 +49,61 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
   const [notes, setNotes] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
-  // Load existing for edit
+  // Sync state when editing or opening
   useEffect(() => {
-    if (editId) {
-      const existing = getBullionById(editId);
-      if (existing) {
-        setType(existing.typeName || existing.type || 'Gold 24K');
-        setItemName(existing.itemName || '');
-        setWeight(
-          existing.weight !== undefined && existing.weight !== null
-            ? String(existing.weight)
-            : (existing.weightGrams ? String(existing.weightGrams) : '')
-        );
-        setWeightUnit(existing.weightUnit || 'g');
-        setPurchaseValue(
-          existing.investedValue !== undefined && existing.investedValue > 0
-            ? String(existing.investedValue)
-            : ''
-        );
-        setPurchaseDate(existing.purchaseDate || '');
-        setStatus(existing.status === 'sold' ? 'sold' : 'active');
-        setPhotoUrl(existing.photoUrl || '');
-        setNotes(existing.notes || '');
-      }
+    if (bullionToEdit) {
+      setType(bullionToEdit.typeName || bullionToEdit.type || 'Gold 24K');
+      setItemName(bullionToEdit.itemName || '');
+      setWeight(
+        bullionToEdit.weight !== undefined && bullionToEdit.weight !== null
+          ? String(bullionToEdit.weight)
+          : (bullionToEdit.weightGrams ? String(bullionToEdit.weightGrams) : '')
+      );
+      setWeightUnit(bullionToEdit.weightUnit || 'g');
+      setPurchaseValue(
+        bullionToEdit.investedValue !== undefined && bullionToEdit.investedValue > 0
+          ? String(bullionToEdit.investedValue)
+          : ''
+      );
+      setPurchaseDate(bullionToEdit.purchaseDate || '');
+      setStatus(bullionToEdit.status === 'sold' ? 'sold' : 'active');
+      setPhotoUrl(bullionToEdit.photoUrl || '');
+      setNotes(bullionToEdit.notes || '');
+    } else {
+      setType('Gold 24K');
+      setItemName('');
+      setWeight('');
+      setWeightUnit('g');
+      setPurchaseValue('');
+      setPurchaseDate('');
+      setStatus('active');
+      setPhotoUrl('');
+      setNotes('');
     }
-  }, [editId, getBullionById]);
+  }, [bullionToEdit, isOpen]);
 
-  // Photo upload
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  if (!isOpen) return null;
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        onShowToast('Receipt image size should be under 5MB.', 'warn');
-        return;
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      onShowToast('File size must be under 5MB', 'warn');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const url = await uploadDocumentFile(file);
+      if (url) {
+        setPhotoUrl(url);
+        onShowToast('Receipt / certificate attached', 'success');
       }
-      try {
-        setIsUploading(true);
-        const uploadedUrl = await uploadDocumentFile(file);
-        if (uploadedUrl) {
-          setPhotoUrl(uploadedUrl);
-          onShowToast('Receipt / certificate attached.', 'success');
-        }
-      } catch {
-        onShowToast('Failed to upload file.', 'warn');
-      } finally {
-        setIsUploading(false);
-      }
+    } catch {
+      onShowToast('Failed to upload file', 'warn');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -98,98 +112,81 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
 
     const trimmedType = type.trim();
     if (!trimmedType) {
-      onShowToast('Please enter the bullion type.', 'warn');
+      onShowToast('Please provide an asset type.', 'warn');
       return;
     }
 
-    const defaultLabel = itemName.trim() || trimmedType;
+    const defaultName = itemName.trim() || trimmedType;
     const numValue = purchaseValue.trim() !== '' ? Number(purchaseValue) : undefined;
     const numWeight = weight.trim() !== '' ? Number(weight) : undefined;
     const computedWeightDisplay = numWeight !== undefined ? `${numWeight} ${weightUnit}` : undefined;
     const computedGrams = numWeight !== undefined ? convertToGrams(numWeight, weightUnit) : undefined;
 
     const saved = addOrUpdateBullion({
-      id: editId || undefined,
+      id: bullionToEdit?.id,
       type: trimmedType,
       typeName: trimmedType,
-      itemName: defaultLabel,
+      itemName: defaultName,
       weight: numWeight,
       weightUnit,
       weightDisplay: computedWeightDisplay,
       weightGrams: computedGrams,
-      purchaseDate: purchaseDate || undefined,
       investedValue: numValue,
+      purchaseDate: purchaseDate || undefined,
       status,
       photoUrl,
       notes: notes.trim() || undefined
     });
 
     onShowToast(
-      editId ? 'Bullion asset updated!' : `Added ${defaultLabel} to vault!`,
+      bullionToEdit ? 'Bullion asset updated' : `Added ${defaultName} to vault`,
       'success'
     );
 
-    navigate(`/bullions/${saved.id}`);
+    if (onSaved) onSaved(saved);
+    onClose();
   };
 
   return (
-    <div className="main-content fade-in" style={{ maxWidth: '680px', margin: '0 auto', paddingBottom: '60px' }}>
-      {/* Breadcrumb Navigation */}
-      <div style={{ marginBottom: '20px' }}>
-        <button
-          type="button"
-          onClick={() => navigate('/bullions')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'none',
-            border: 'none',
-            color: 'var(--color-charcoal-light)',
-            fontSize: '13px',
-            fontWeight: 600,
-            cursor: 'pointer',
-            padding: 0
-          }}
-        >
-          <ChevronLeft size={16} />
-          <span>Back to Bullions</span>
-        </button>
-      </div>
-
-      {/* Compact Add/Edit Card */}
-      <div className="form-page-card" style={{ padding: '28px 32px' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            marginBottom: '24px',
-            paddingBottom: '16px',
-            borderBottom: '1px solid var(--border-light)'
-          }}
-        >
-          <div className="bullion-modal-icon-badge">
-            <Coins size={20} />
+    <div className="modal-overlay bullion-modal-overlay fade-in" onClick={onClose} role="dialog" aria-modal="true">
+      <div
+        className="modal-content-box bullion-modal-box"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="bullion-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div className="bullion-modal-icon-badge">
+              <Coins size={18} />
+            </div>
+            <div>
+              <h2 className="bullion-modal-title">
+                {bullionToEdit ? 'Edit Bullion Asset' : 'Add Bullion Asset'}
+              </h2>
+              <span className="bullion-modal-sub">
+                Compact physical asset record
+              </span>
+            </div>
           </div>
-          <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
-              {editId ? 'Edit Bullion Asset' : 'Add Bullion Asset'}
-            </h1>
-            <p style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0' }}>
-              Recording for <strong>{activeMember?.name || 'User'}</strong>
-            </p>
-          </div>
+          <button
+            type="button"
+            className="btn btn-subtle btn-sm"
+            onClick={onClose}
+            style={{ padding: '6px' }}
+          >
+            <X size={18} />
+          </button>
         </div>
 
+        {/* Modal Form */}
         <form onSubmit={handleSubmit} className="bullion-modal-form">
           {/* 1. Asset Type */}
           <div className="form-group">
-            <label className="form-label" htmlFor="pageAssetType">
+            <label className="form-label" htmlFor="bullionAssetType">
               Asset Type <span style={{ color: 'var(--color-gold)' }}>*</span>
             </label>
             <input
-              id="pageAssetType"
+              id="bullionAssetType"
               type="text"
               className="form-input"
               placeholder="e.g. Gold 24K, Silver Bar, Diamond Solitaire"
@@ -214,11 +211,11 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
 
           {/* 2. Item Name / Description (Optional) */}
           <div className="form-group">
-            <label className="form-label" htmlFor="pageItemName">
+            <label className="form-label" htmlFor="bullionItemName">
               Item Name / Description <span className="text-optional">(Optional)</span>
             </label>
             <input
-              id="pageItemName"
+              id="bullionItemName"
               type="text"
               className="form-input"
               placeholder={`Defaults to "${type || 'Bullion Holding'}"`}
@@ -229,12 +226,12 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
 
           {/* 3. Weight Measurement: value + unit dropdown */}
           <div className="form-group">
-            <label className="form-label" htmlFor="pageWeight">
+            <label className="form-label" htmlFor="bullionWeight">
               Weight Measurement <span className="text-optional">(Optional)</span>
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: '8px' }}>
               <input
-                id="pageWeight"
+                id="bullionWeight"
                 type="number"
                 min="0"
                 step="any"
@@ -244,7 +241,7 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
                 onChange={(e) => setWeight(e.target.value)}
               />
               <select
-                id="pageWeightUnit"
+                id="bullionWeightUnit"
                 className="form-select"
                 value={weightUnit}
                 onChange={(e) => setWeightUnit(e.target.value)}
@@ -262,13 +259,13 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
           {/* 4. Row: Purchase Value (Optional) & Purchase Date (Optional) */}
           <div className="form-row-2col">
             <div className="form-group">
-              <label className="form-label" htmlFor="pagePurchaseValue">
+              <label className="form-label" htmlFor="bullionPurchaseValue">
                 Purchase Value (₹) <span className="text-optional">(Optional)</span>
               </label>
               <div className="input-affix-wrapper">
                 <span className="input-prefix" style={{ color: 'var(--color-gold)' }}>₹</span>
                 <input
-                  id="pagePurchaseValue"
+                  id="bullionPurchaseValue"
                   type="number"
                   min="0"
                   step="any"
@@ -281,11 +278,11 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="pagePurchaseDate">
+              <label className="form-label" htmlFor="bullionPurchaseDate">
                 Purchase Date <span className="text-optional">(Optional)</span>
               </label>
               <input
-                id="pagePurchaseDate"
+                id="bullionPurchaseDate"
                 type="date"
                 className="form-input"
                 value={purchaseDate}
@@ -303,7 +300,7 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
               <label className={`bullion-status-choice ${status === 'active' ? 'active' : ''}`}>
                 <input
                   type="radio"
-                  name="pageBullionStatus"
+                  name="bullionStatus"
                   value="active"
                   checked={status === 'active'}
                   onChange={() => setStatus('active')}
@@ -315,7 +312,7 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
               <label className={`bullion-status-choice ${status === 'sold' ? 'active' : ''}`}>
                 <input
                   type="radio"
-                  name="pageBullionStatus"
+                  name="bullionStatus"
                   value="sold"
                   checked={status === 'sold'}
                   onChange={() => setStatus('sold')}
@@ -362,7 +359,7 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
                 <input
                   type="file"
                   accept="image/*,application/pdf"
-                  onChange={handlePhotoUpload}
+                  onChange={handleFileUpload}
                   style={{ display: 'none' }}
                   disabled={isUploading}
                 />
@@ -371,12 +368,12 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
           </div>
 
           {/* 7. Notes (Optional) */}
-          <div className="form-group" style={{ marginBottom: '16px' }}>
-            <label className="form-label" htmlFor="pageNotes">
+          <div className="form-group" style={{ marginBottom: '8px' }}>
+            <label className="form-label" htmlFor="bullionNotes">
               Notes <span className="text-optional">(Optional)</span>
             </label>
             <input
-              id="pageNotes"
+              id="bullionNotes"
               type="text"
               className="form-input"
               placeholder="e.g. Purchased from Tanishq, locker no. 14"
@@ -385,21 +382,21 @@ export const AddBullionPage: React.FC<AddBullionPageProps> = ({ onShowToast }) =
             />
           </div>
 
-          {/* Actions */}
-          <div className="bullion-modal-actions" style={{ marginTop: '20px' }}>
+          {/* Modal Actions */}
+          <div className="bullion-modal-actions">
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => navigate('/bullions')}
+              onClick={onClose}
             >
               Cancel
             </button>
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ background: 'var(--color-navy)', minWidth: '130px' }}
+              style={{ background: 'var(--color-navy)', minWidth: '120px' }}
             >
-              {editId ? 'Save Changes' : 'Add Asset'}
+              {bullionToEdit ? 'Save Changes' : 'Add Asset'}
             </button>
           </div>
         </form>

@@ -1,27 +1,40 @@
 import React from 'react';
 import type { BullionInvestment } from '../types';
 import { formatCurrency, formatDate } from '../utils/calculations';
-import { getBullionMetadata, getEffectiveBullionValue, hasSufficientValue } from '../utils/bullionCalculations';
-import { getDeadlineClassification } from '../utils/deadlinesColorMap';
-import { AlertCircle, Calendar, Scale, Image as ImageIcon, ChevronRight, Clock } from 'lucide-react';
+import { getEffectiveBullionValue } from '../utils/bullionCalculations';
+import {
+  getBullionCategory,
+  getBullionCategoryTheme,
+  isBullionIncomplete
+} from '../utils/bullionUiHelpers';
+import { AlertCircle, Calendar } from 'lucide-react';
 
 interface BullionCardProps {
   investment: BullionInvestment;
+  isSelected?: boolean;
   onClick: () => void;
 }
 
-export const BullionCard: React.FC<BullionCardProps> = ({ investment, onClick }) => {
-  const isComplete = hasSufficientValue(investment);
+export const BullionCard: React.FC<BullionCardProps> = ({
+  investment,
+  isSelected = false,
+  onClick
+}) => {
+  const category = getBullionCategory(investment);
+  const theme = getBullionCategoryTheme(category);
   const effectiveValue = getEffectiveBullionValue(investment);
-  const meta = getBullionMetadata(investment.typeName || investment.type);
-  const deadline = investment.paymentDueDate ? getDeadlineClassification(investment.paymentDueDate) : null;
+  const isIncomplete = isBullionIncomplete(investment);
+  const isSold = investment.status === 'sold';
+
+  // Display type and item name cleanly
+  const displayType = investment.typeName || investment.type || 'Precious Asset';
+  const itemName = investment.itemName && investment.itemName !== displayType ? investment.itemName : '';
 
   return (
     <div
-      className="fd-desktop-card"
+      className={`bullion-card ${category.toLowerCase()}-type ${isSelected ? 'selected' : ''}`}
       style={{
-        borderLeft: `6px solid ${meta.color}`,
-        background: '#FFFFFF'
+        borderLeftColor: theme.borderAccent
       }}
       onClick={onClick}
       role="button"
@@ -33,162 +46,72 @@ export const BullionCard: React.FC<BullionCardProps> = ({ investment, onClick })
         }
       }}
     >
-      <div className="fd-card-head">
-        <div className="fd-bank-group">
-          <div className="fd-bank-icon-box" style={{ background: meta.badgeBg, borderColor: 'transparent' }}>
-            <span style={{ fontSize: '22px' }}>{meta.icon}</span>
-          </div>
-          <div className="fd-bank-texts">
-            <span className="fd-bank-name-text">{investment.itemName}</span>
-            <span className="fd-acc-no-text">{meta.name}</span>
-          </div>
-        </div>
-
-        {/* Status Badge */}
-        {isComplete ? (
-          <span
-            className="fd-interest-badge"
-            style={{ background: '#ECFDF5', color: '#059669', borderColor: '#A7F3D0' }}
-          >
-            Verified Value
+      {/* Top Header: Asset Type & Status */}
+      <div className="bullion-card-header">
+        <div className="bullion-card-type-group">
+          <span className="bullion-card-type-icon" style={{ background: theme.bgTint, borderColor: theme.borderTint }}>
+            {theme.icon}
           </span>
-        ) : (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '5px',
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-full)',
-              background: '#FFFBEB',
-              color: '#B45309',
-              border: '1px solid #FCD34D',
-              fontSize: '12px',
-              fontWeight: 700
-            }}
-          >
-            <AlertCircle size={13} />
-            <span>Needs verification soon</span>
-          </span>
-        )}
-      </div>
-
-      <div className="fd-card-mid" style={{ background: '#F8FAFC' }}>
-        <div className="mid-amount-col">
-          <span className="val-kicker">Recorded / Purchase Value</span>
-          {isComplete ? (
-            <>
-              <span className="card-principal-val">₹ {formatCurrency(effectiveValue)}</span>
-              {investment.purchaseRate && (
-                <span className="card-payout-text" style={{ color: 'var(--text-secondary)' }}>
-                  @ ₹{formatCurrency(investment.purchaseRate)} {investment.weightUnit ? `/ ${investment.weightUnit}` : ''}
-                </span>
-              )}
-            </>
-          ) : (
-            <div style={{ padding: '4px 0' }}>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-muted)' }}>
-                Value not recorded
-              </span>
-              <div style={{ fontSize: '12px', color: '#B45309', marginTop: '2px' }}>
-                Excluded from portfolio totals
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="mid-date-col">
-          <span className="val-kicker">Purchase / Acquisition</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
-            <Calendar size={14} color="var(--text-muted)" />
-            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-main)' }}>
-              {investment.purchaseDate ? formatDate(investment.purchaseDate) : 'Not Specified'}
-            </span>
-          </div>
-
-          {investment.weightDisplay || investment.weightGrams ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              <Scale size={13} color="var(--text-muted)" />
-              <span>{investment.weightDisplay || `${investment.weightGrams}g`}</span>
-            </div>
-          ) : (
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-              Weight unrecorded
-            </div>
-          )}
-        </div>
-
-        {/* Payment Due Date Colour Map Strip */}
-        {investment.paymentDueDate && (
-          <div
-            style={{
-              gridColumn: '1 / -1',
-              padding: '8px 12px',
-              borderRadius: 'var(--radius-sm)',
-              background: deadline?.bgTint || '#EFF6FF',
-              border: `1px solid ${deadline?.borderTint || '#BFDBFE'}`,
-              color: deadline?.textDark || '#1E40AF',
-              fontSize: '11px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '8px',
-              marginTop: '4px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {deadline?.isOverdue ? (
-                <AlertCircle size={13} style={{ flexShrink: 0, color: '#DC2626' }} />
-              ) : (
-                <Clock size={13} style={{ flexShrink: 0, color: deadline?.hexColor || '#2563EB' }} />
-              )}
-              <span>
-                <strong>Balance Due:</strong>{' '}
-                ₹ {formatCurrency(investment.remainingPayment !== undefined ? investment.remainingPayment : effectiveValue)} by{' '}
-                <strong>{formatDate(investment.paymentDueDate)}</strong>
-              </span>
-            </div>
-            {deadline && (
-              <span
-                style={{
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: deadline.hexColor,
-                  color: '#FFFFFF',
-                  fontSize: '10px',
-                  fontWeight: 800,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {deadline.relativeText}
+          <div className="bullion-card-title-wrap">
+            <h3 className="bullion-card-type-name" title={displayType}>
+              {displayType}
+            </h3>
+            {itemName && (
+              <span className="bullion-card-item-subtitle" title={itemName}>
+                {itemName}
               </span>
             )}
           </div>
-        )}
+        </div>
+
+        {/* Status Pill: Held or Sold */}
+        <span className={`bullion-status-pill ${isSold ? 'sold' : 'held'}`}>
+          <span className="bullion-status-dot" />
+          <span>{isSold ? 'Sold' : 'Held'}</span>
+        </span>
       </div>
 
-      <div className="fd-card-foot">
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-          {investment.notes ? (
-            <span style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }}>
-              {investment.notes}
-            </span>
-          ) : (
-            <span>Holding details</span>
-          )}
-        </span>
+      {/* Subtle "Incomplete details" indicator */}
+      {isIncomplete && (
+        <div className="bullion-incomplete-indicator">
+          <AlertCircle size={12} />
+          <span>Incomplete details</span>
+        </div>
+      )}
 
-        {investment.photoUrl ? (
-          <span className="card-photo-tag">
-            <ImageIcon size={14} />
-            <span>Receipt Attached</span>
-          </span>
-        ) : (
-          <span style={{ color: 'var(--brand-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <span>View Details</span>
-            <ChevronRight size={14} />
-          </span>
-        )}
+      {/* Metric Grid: Only Purchase Value & Purchase Date */}
+      <div className="bullion-card-metrics">
+        {/* Purchase Value */}
+        <div className="bullion-metric-box">
+          <span className="bullion-metric-kicker">Purchase Value</span>
+          <div className="bullion-metric-val">
+            {effectiveValue > 0 ? (
+              <>
+                <span className="bullion-currency-sign" style={{ color: theme.borderAccent }}>
+                  ₹
+                </span>
+                <span>{formatCurrency(effectiveValue)}</span>
+              </>
+            ) : (
+              <span className="bullion-empty-metric">—</span>
+            )}
+          </div>
+        </div>
+
+        {/* Purchase Date */}
+        <div className="bullion-metric-box">
+          <span className="bullion-metric-kicker">Purchase Date</span>
+          <div className="bullion-metric-val date-val">
+            {investment.purchaseDate ? (
+              <span className="bullion-date-text">
+                <Calendar size={13} className="bullion-date-icon" />
+                <span>{formatDate(investment.purchaseDate)}</span>
+              </span>
+            ) : (
+              <span className="bullion-empty-metric">—</span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

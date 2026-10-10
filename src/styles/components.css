@@ -3102,4 +3102,1519 @@
   border-top: 1px solid #F1F5F9;
 }
 
+/* ============================================================================
+   BULLIONS PAGE REDESIGN STYLES
+   ============================================================================ */
+
+/* 1. Header */
+.bullion-executive-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.bullion-breadcrumb-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-charcoal-muted);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.bullion-breadcrumb-link {
+  cursor: pointer;
+  color: var(--color-charcoal);
+  transition: color 0.15s ease;
+}
+
+.bullion-breadcrumb-link:hover {
+  color: var(--color-navy);
+  text-decoration: underline;
+}
+
+.bullion-page-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--color-navy);
+  margin: 0;
+  letter-spacing: -0.02em;
+  font-family: var(--font-family-display);
+}
+
+.bullion-page-subtitle {
+  font-size: 13px;
+  color: var(--color-charcoal-muted);
+  margin: 4px 0 0 0;
+}
+
+.bullion-primary-add-btn {
+  background: var(--color-navy) !important;
+  color: #FFFFFF !important;
+  border-color: var(--color-navy) !important;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(15, 30, 54, 0.15);
+  transition: all 0.15s ease;
+}
+
+.bullion-primary-add-btn:hover {
+  background: var(--color-navy-hover) !important;
+  border-color: var(--color-navy-hover) !important;
+  box-shadow: 0 3px 8px rgba(15, 30, 54, 0.2);
+  transform: translateY(-1px);
+}
+
+/* 2. Overview Grid (3 compact summary cards) */
+.bullion-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 860px) {
+  .bullion-overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bullion-overview-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bullion-overview-card:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--border-hover);
+}
+
+.bullion-overview-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-charcoal-light);
+  margin-bottom: 6px;
+}
+
+.bullion-overview-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--color-navy);
+  font-family: var(--font-family-display);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.bullion-overview-unit {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-charcoal-muted);
+  margin-left: 6px;
+  font-family: var(--font-family-body);
+}
+
+.bullion-overview-sub {
+  font-size: 12px;
+  color: var(--color-charcoal-muted);
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+/* 3. Category Filter Tabs: All | Gold | Silver | Diamonds | Stones | Other */
+.bullion-category-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.bullion-category-tab {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  color: var(--color-charcoal);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.bullion-category-tab:hover {
+  background: var(--bg-surface-subtle);
+  border-color: var(--border-hover);
+  color: var(--color-navy);
+}
+
+.bullion-category-tab.active {
+  background: var(--color-navy);
+  border-color: var(--color-navy);
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+/* 4. Toolbar: Search + Simple Filter Control + View Switcher */
+.bullion-toolbar-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-xs);
+}
+
+.bullion-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 220px;
+  max-width: 380px;
+}
+
+.bullion-search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--color-charcoal-muted);
+  pointer-events: none;
+}
+
+.bullion-search-input {
+  width: 100%;
+  padding: 7px 30px 7px 32px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface-soft);
+  color: var(--text-main);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.bullion-search-input:focus {
+  background: #FFFFFF;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px var(--color-navy-subtle);
+}
+
+.bullion-search-clear-btn {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-charcoal-muted);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+
+.bullion-search-clear-btn:hover {
+  color: var(--color-navy);
+}
+
+.bullion-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.bullion-toolbar-reset-link {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-gold);
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+  transition: color 0.15s ease;
+}
+
+.bullion-toolbar-reset-link:hover {
+  color: var(--color-gold-hover);
+}
+
+.bullion-view-toggle {
+  display: flex;
+  align-items: center;
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-card);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.bullion-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-charcoal-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bullion-view-btn.active {
+  background: #FFFFFF;
+  color: var(--color-navy);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.bullion-view-btn:hover:not(.active) {
+  color: var(--color-navy);
+}
+
+/* 5. Filter Popover */
+.bullion-filter-control-wrapper {
+  position: relative;
+}
+
+.bullion-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  color: var(--color-charcoal);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bullion-filter-btn:hover {
+  background: var(--bg-surface-subtle);
+  border-color: var(--border-hover);
+  color: var(--color-navy);
+}
+
+.bullion-filter-btn.has-active {
+  border-color: var(--color-gold);
+  color: var(--color-gold-dark);
+  background: var(--color-gold-bg);
+}
+
+.bullion-filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  color: #FFFFFF;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.bullion-filter-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 260px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+  padding: 16px;
+}
+
+.bullion-filter-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.bullion-filter-popover-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.bullion-filter-reset-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-gold);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.bullion-filter-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bullion-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bullion-filter-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-light);
+}
+
+.bullion-filter-select {
+  padding: 7px 10px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  outline: none;
+  cursor: pointer;
+}
+
+.bullion-filter-select:focus {
+  border-color: var(--border-focus);
+}
+
+/* 6. Assets Grid & Clean Cards */
+.bullion-grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 16px;
+}
+
+.bullion-list-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bullion-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-left-width: 4px;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  outline: none;
+}
+
+.bullion-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-hover);
+}
+
+.bullion-card.selected {
+  border-color: var(--color-navy);
+  box-shadow: 0 0 0 2px var(--color-navy-subtle), var(--shadow-md);
+}
+
+.bullion-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.bullion-card-type-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.bullion-card-type-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.bullion-card-title-wrap {
+  min-width: 0;
+  flex: 1;
+}
+
+.bullion-card-type-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin: 0;
+  font-family: var(--font-family-display);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bullion-card-item-subtitle {
+  font-size: 12px;
+  color: var(--color-charcoal-muted);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Status Pill: Held or Sold */
+.bullion-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.bullion-status-pill.held {
+  background: var(--color-emerald-bg);
+  color: var(--color-emerald);
+  border-color: var(--color-emerald-border);
+}
+
+.bullion-status-pill.sold {
+  background: var(--bg-surface-subtle);
+  color: var(--color-charcoal);
+  border-color: var(--border-card);
+}
+
+.bullion-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.bullion-status-pill.held .bullion-status-dot {
+  background: var(--color-emerald);
+}
+
+.bullion-status-pill.sold .bullion-status-dot {
+  background: var(--color-charcoal-muted);
+}
+
+/* Subtle Incomplete details indicator */
+.bullion-incomplete-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #FFFBEB;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  width: fit-content;
+}
+
+/* Card Metrics Grid */
+.bullion-card-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+}
+
+.bullion-metric-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.bullion-metric-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-light);
+  margin-bottom: 3px;
+}
+
+.bullion-metric-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-navy);
+  font-family: var(--font-family-display);
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.bullion-metric-val.date-val {
+  font-size: 13px;
+  font-family: var(--font-family-body);
+  font-weight: 600;
+  color: var(--color-charcoal);
+}
+
+.bullion-currency-sign {
+  font-weight: 700;
+  margin-right: 1px;
+}
+
+.bullion-empty-metric {
+  color: var(--color-charcoal-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.bullion-date-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bullion-date-icon {
+  color: var(--color-charcoal-muted);
+  flex-shrink: 0;
+}
+
+/* 7. Empty State */
+.bullion-empty-container {
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-medium);
+  border-radius: 14px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.bullion-empty-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--bg-surface-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.bullion-empty-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin: 0 0 6px 0;
+}
+
+.bullion-empty-subtitle {
+  font-size: 13px;
+  color: var(--color-charcoal-muted);
+  margin: 0 0 20px 0;
+  max-width: 380px;
+}
+
+/* 8. Slide-over Details Drawer & Panel */
+.bullion-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 99;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.bullion-drawer-sheet {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background: var(--bg-surface);
+  box-shadow: -4px 0 24px rgba(15, 30, 54, 0.16);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bullion-details-container {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+}
+
+.bullion-details-container.page-mode {
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.bullion-details-container.drawer-mode {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.bullion-details-header {
+  padding: 24px 26px 18px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bullion-details-header-main {
+  flex: 1;
+}
+
+.bullion-details-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.bullion-details-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.bullion-details-title {
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-navy);
+  margin: 0;
+  font-family: var(--font-family-display);
+}
+
+.bullion-details-subtitle {
+  font-size: 13px;
+  color: var(--color-charcoal-muted);
+  display: block;
+  margin-top: 2px;
+}
+
+.bullion-details-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--color-charcoal);
+  transition: all 0.15s ease;
+}
+
+.bullion-details-close-btn:hover {
+  background: var(--bg-surface-subtle);
+  color: var(--color-navy);
+  border-color: var(--border-hover);
+}
+
+.bullion-details-sold-banner {
+  margin: 16px 26px 0;
+  padding: 10px 14px;
+  background: var(--color-emerald-bg);
+  border: 1px solid var(--color-emerald-border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bullion-sold-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #065F46;
+  display: block;
+}
+
+.bullion-sold-sub {
+  font-size: 11px;
+  color: #047857;
+  display: block;
+  margin-top: 1px;
+}
+
+.bullion-details-incomplete-banner {
+  margin: 16px 26px 0;
+  padding: 10px 14px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bullion-incomplete-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400E;
+  display: block;
+}
+
+.bullion-incomplete-sub {
+  font-size: 11px;
+  color: #B45309;
+  display: block;
+  margin-top: 1px;
+}
+
+.bullion-details-body {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+.bullion-details-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bullion-details-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-light);
+}
+
+.bullion-details-metric-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.bullion-details-metric-card {
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.bullion-details-metric-card.primary {
+  border-color: var(--border-card);
+}
+
+.bullion-details-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-light);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.bullion-details-metric-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-navy);
+  font-family: var(--font-family-display);
+}
+
+.bullion-details-metric-sub {
+  font-size: 11px;
+  color: var(--color-charcoal-muted);
+  margin-top: 4px;
+  display: block;
+}
+
+.bullion-details-specs-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.bullion-spec-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bullion-spec-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-light);
+}
+
+.bullion-spec-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.bullion-details-notes-box {
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--text-body);
+  line-height: 1.5;
+}
+
+.bullion-details-doc-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bullion-details-doc-card:hover {
+  background: var(--bg-surface-subtle);
+  border-color: var(--border-hover);
+}
+
+.bullion-details-doc-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bullion-details-doc-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.bullion-details-doc-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.bullion-details-doc-sub {
+  font-size: 11px;
+  color: var(--color-charcoal-muted);
+}
+
+.bullion-details-doc-empty {
+  padding: 12px 14px;
+  background: var(--bg-surface-soft);
+  border: 1px dashed var(--border-medium);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bullion-details-actions-bar {
+  padding: 16px 26px;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-surface-soft);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: auto;
+}
+
+.bullion-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 9px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.bullion-action-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-surface-subtle);
+}
+
+.bullion-action-btn.edit {
+  color: var(--color-navy);
+}
+
+.bullion-action-btn.sell {
+  color: var(--color-emerald);
+}
+
+.bullion-action-btn.sell:hover {
+  background: var(--color-emerald-bg);
+  border-color: var(--color-emerald-border);
+}
+
+.bullion-action-btn.doc {
+  color: var(--color-charcoal);
+}
+
+.bullion-action-btn.delete {
+  color: #DC2626;
+}
+
+.bullion-action-btn.delete:hover {
+  background: #FEF2F2;
+  border-color: #FECACA;
+}
+
+.bullion-action-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--color-charcoal-muted);
+}
+
+.bullion-details-page-wrapper {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* 9. Compact Add Asset Modal & Form */
+.modal-backdrop,
+.bullion-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-box,
+.bullion-modal-box {
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 28px;
+  border-radius: 16px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-modal);
+  border: 1px solid var(--border-light);
+  animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+@keyframes scaleUp {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.bullion-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.bullion-modal-icon-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--color-gold-bg);
+  border: 1px solid var(--color-gold-border);
+  color: var(--color-gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bullion-modal-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-navy);
+  margin: 0;
+  font-family: var(--font-family-display);
+}
+
+.bullion-modal-sub {
+  font-size: 12px;
+  color: var(--color-charcoal-muted);
+}
+
+.bullion-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bullion-chips-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.bullion-chip-btn {
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-light);
+  color: var(--color-charcoal);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.bullion-chip-btn:hover {
+  background: var(--bg-surface-subtle);
+  color: var(--color-navy);
+}
+
+.bullion-chip-btn.active {
+  background: var(--color-navy);
+  border-color: var(--color-navy);
+  color: #FFFFFF;
+}
+
+.bullion-status-toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.bullion-status-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-surface);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-charcoal);
+  transition: all 0.15s ease;
+}
+
+.bullion-status-choice input {
+  display: none;
+}
+
+.bullion-status-choice.active {
+  border-color: var(--color-navy);
+  background: var(--color-navy-subtle);
+  color: var(--color-navy);
+}
+
+.bullion-status-choice-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.bullion-status-choice-dot.held {
+  background: var(--color-emerald);
+}
+
+.bullion-status-choice-dot.sold {
+  background: var(--color-charcoal-muted);
+}
+
+.bullion-upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 1px dashed var(--border-medium);
+  border-radius: 8px;
+  background: var(--bg-surface-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.bullion-upload-dropzone:hover {
+  border-color: var(--color-navy);
+  background: var(--bg-surface-subtle);
+}
+
+.bullion-modal-doc-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+}
+
+.bullion-modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.text-optional {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-charcoal-muted);
+}
+
+/* ==========================================================================
+   REDESIGNED REAL ESTATE (RE) CARD & COMPONENT STYLES
+   Visual-first, Clean, Classy Light Theme with Deep Navy, Charcoal & Muted Gold
+   ========================================================================== */
+
+.re-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-left-width: 4px;
+  border-left-style: solid;
+  border-radius: 12px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.18s ease;
+  outline: none;
+  position: relative;
+}
+
+.re-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.re-card.selected {
+  border-color: var(--color-navy);
+  box-shadow: 0 0 0 2px var(--color-navy), var(--shadow-md);
+}
+
+.re-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.re-card-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.re-card-type-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.re-card-title-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.re-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-navy);
+  margin: 0;
+  line-height: 1.3;
+  font-family: var(--font-family-display);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.re-card-type-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-charcoal-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
+.re-card-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-charcoal-light);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 6px 10px;
+  background: var(--bg-surface-soft);
+  border-radius: 6px;
+  border: 1px solid var(--border-light);
+}
+
+.re-location-icon {
+  color: var(--color-charcoal-muted);
+  flex-shrink: 0;
+}
+
+.re-card-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light);
+  margin-top: auto;
+}
+
+.re-card-price-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.re-card-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-charcoal-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.re-card-price-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-navy);
+  font-family: var(--font-family-display);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  line-height: 1.2;
+}
+
+.re-currency-sign {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.re-card-rent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #065F46;
+  white-space: nowrap;
+}
+
+.re-rent-tag-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #10B981;
+  display: inline-block;
+}
+
+/* Linked Rental Details Card in Drawer / Details Panel */
+.re-rental-details-card {
+  background: var(--bg-surface-soft);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.re-rental-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.re-rental-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-charcoal-muted);
+  display: block;
+  margin-bottom: 2px;
+}
+
+.re-rental-tenant-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-navy);
+}
+
+.re-rental-contact {
+  font-size: 11px;
+  color: var(--color-charcoal-muted);
+  display: block;
+  margin-top: 1px;
+}
+
+.re-rental-amount {
+  font-size: 18px;
+  font-weight: 800;
+  color: #065F46;
+  font-family: var(--font-family-display);
+  line-height: 1.2;
+}
+
+.re-rental-dates-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+
+.re-rental-date-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.re-rental-date-val {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-charcoal-dark);
+}
+
+.re-rental-due-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(181, 137, 36, 0.1);
+  border: 1px solid rgba(181, 137, 36, 0.3);
+  color: #8C6615;
+}
+
+
+
 

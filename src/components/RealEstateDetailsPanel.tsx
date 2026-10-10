@@ -1,0 +1,526 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useInvestments } from '../context/InvestmentContext';
+import type { PropertyRecord, RentRecord, DocumentRecord } from '../types';
+import { formatCurrency, formatDate } from '../utils/calculations';
+import {
+  getRealEstateCategory,
+  getRealEstateCategoryTheme,
+  isPropertyIncomplete
+} from '../utils/realEstateUiHelpers';
+import { PhotoModal } from './PhotoModal';
+import { StartRentModal } from './StartRentModal';
+import { SellPropertyModal } from './SellPropertyModal';
+import { AddDocumentModal } from './AddDocumentModal';
+import {
+  X,
+  Edit3,
+  KeyRound,
+  FileText,
+  Trash2,
+  Tag,
+  MapPin,
+  AlertCircle,
+  ExternalLink,
+  CheckCircle2,
+  User,
+  Phone,
+  Clock
+} from 'lucide-react';
+
+interface RealEstateDetailsPanelProps {
+  property: PropertyRecord;
+  activeRent?: RentRecord;
+  documents?: DocumentRecord[];
+  onClose?: () => void;
+  onEdit?: (p: PropertyRecord) => void;
+  onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
+  isDrawer?: boolean;
+}
+
+export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
+  property,
+  activeRent: passedActiveRent,
+  documents: passedDocs,
+  onClose,
+  onEdit,
+  onShowToast,
+  isDrawer = false
+}) => {
+  const navigate = useNavigate();
+  const {
+    getActiveRentForProperty,
+    getDocumentsForProperty,
+    deleteProperty,
+    startRent,
+    stopRent,
+    sellProperty,
+    addDocument
+  } = useInvestments();
+
+  const [isRentModalOpen, setIsRentModalOpen] = useState(false);
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
+  const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
+
+  const activeRent = passedActiveRent || getActiveRentForProperty(property.p_id);
+  const docs = passedDocs || getDocumentsForProperty(property.p_id);
+
+  const category = getRealEstateCategory(property);
+  const theme = getRealEstateCategoryTheme(category);
+  const isIncomplete = isPropertyIncomplete(property);
+  const isSold = property.property_status === 'SOLD';
+  const price = Number(property.purchase_price) || 0;
+
+  const handleDelete = () => {
+    if (
+      window.confirm(
+        `Are you sure you want to delete "${property.name}"?\n\nThis property will be removed from your portfolio.`
+      )
+    ) {
+      deleteProperty(property.p_id);
+      onShowToast(`Property "${property.name}" deleted.`, 'info');
+      if (onClose) {
+        onClose();
+      } else {
+        navigate('/real-estate');
+      }
+    }
+  };
+
+  const handleEdit = () => {
+    if (onEdit) {
+      onEdit(property);
+    } else {
+      navigate(`/add-property?edit=${property.p_id}`);
+    }
+  };
+
+  const handleStopRent = () => {
+    if (!activeRent) return;
+    if (
+      window.confirm(
+        `End current lease with tenant "${activeRent.tenant_name}"?\n\nThe lease history will be preserved.`
+      )
+    ) {
+      stopRent(activeRent.r_id);
+      onShowToast(`Tenancy ended. Property is now vacant.`, 'info');
+    }
+  };
+
+  return (
+    <div className={`bullion-details-container ${isDrawer ? 'drawer-mode' : 'page-mode'}`}>
+      {/* Panel Header */}
+      <div className="bullion-details-header">
+        <div className="bullion-details-header-main">
+          <div className="bullion-details-title-row">
+            <span
+              className="bullion-details-icon-wrap"
+              style={{ background: theme.bgTint, borderColor: theme.borderTint }}
+            >
+              {theme.icon}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h2 className="bullion-details-title" title={property.name}>
+                {property.name}
+              </h2>
+              <span className="bullion-details-subtitle">{theme.label}</span>
+            </div>
+            <span className={`bullion-status-pill ${isSold ? 'sold' : 'held'}`} style={{ marginLeft: 'auto' }}>
+              <span className="bullion-status-dot" />
+              <span>{isSold ? 'Sold' : 'Active'}</span>
+            </span>
+          </div>
+        </div>
+
+        {isDrawer && onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="bullion-details-close-btn"
+            title="Close Panel"
+          >
+            <X size={18} />
+          </button>
+        )}
+      </div>
+
+      {/* Sold Notice Banner */}
+      {isSold && (
+        <div className="bullion-details-sold-banner">
+          <CheckCircle2 size={16} color="#047857" />
+          <div>
+            <span className="bullion-sold-title">Property Sold</span>
+            <span className="bullion-sold-sub">
+              Sale proceeds and transactions are tracked in Realized Funds.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Incomplete Details Warning */}
+      {isIncomplete && !isSold && (
+        <div className="bullion-details-incomplete-banner">
+          <AlertCircle size={15} color="#B45309" />
+          <div style={{ flex: 1 }}>
+            <span className="bullion-incomplete-title">Incomplete Details</span>
+            <span className="bullion-incomplete-sub">
+              {!price && !property.location
+                ? 'Purchase price and location are missing.'
+                : !price
+                ? 'Purchase price is not recorded.'
+                : 'Property location is missing.'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Details Body */}
+      <div className="bullion-details-body">
+        {/* Section 1: Purchase & Location Details */}
+        <div className="bullion-details-section">
+          <span className="bullion-details-section-title">Purchase Details &amp; Location</span>
+          <div className="bullion-details-metric-row">
+            <div className="bullion-details-metric-card primary">
+              <span className="bullion-details-metric-label">Purchase Price</span>
+              <div className="bullion-details-metric-value">
+                {price > 0 ? (
+                  <>
+                    <span style={{ color: theme.borderAccent, marginRight: '3px' }}>₹</span>
+                    {formatCurrency(price)}
+                  </>
+                ) : (
+                  <span style={{ fontSize: '15px', color: 'var(--color-charcoal-muted)' }}>Not recorded</span>
+                )}
+              </div>
+              <span className="bullion-details-metric-sub">
+                {price > 0 ? 'Total acquisition cost' : 'Excluded from total valuation'}
+              </span>
+            </div>
+
+            <div className="bullion-details-metric-card">
+              <span className="bullion-details-metric-label">Purchase Date</span>
+              <div className="bullion-details-metric-value" style={{ fontSize: '17px' }}>
+                {property.purchase_date ? formatDate(property.purchase_date) : 'Not specified'}
+              </div>
+              <span className="bullion-details-metric-sub">Acquisition date</span>
+            </div>
+          </div>
+
+          {/* Location & Area Row */}
+          <div className="bullion-details-specs-box">
+            <div className="bullion-spec-item" style={{ gridColumn: '1 / -1' }}>
+              <span className="bullion-spec-label">
+                <MapPin size={12} />
+                <span>Location</span>
+              </span>
+              <span className="bullion-spec-val" style={{ fontSize: '13px', fontWeight: 600 }}>
+                {property.location || 'Location not specified'}
+              </span>
+            </div>
+            {Boolean(property.area_sqft) && (
+              <div className="bullion-spec-item">
+                <span className="bullion-spec-label">Area / Size</span>
+                <span className="bullion-spec-val">
+                  {property.area_sqft} sq.ft
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Section 2: Seller / Party Information */}
+        {(property.party_name || property.party_contact) && (
+          <div className="bullion-details-section">
+            <span className="bullion-details-section-title">Seller / Party Information</span>
+            <div className="bullion-details-specs-box">
+              <div className="bullion-spec-item">
+                <span className="bullion-spec-label">
+                  <User size={12} />
+                  <span>Seller / Party Name</span>
+                </span>
+                <span className="bullion-spec-val">
+                  {property.party_name || 'Not specified'}
+                </span>
+              </div>
+
+              <div className="bullion-spec-item">
+                <span className="bullion-spec-label">
+                  <Phone size={12} />
+                  <span>Contact Phone</span>
+                </span>
+                <span className="bullion-spec-val">
+                  {property.party_contact || 'Not specified'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Section 3: Linked Rental Details */}
+        <div className="bullion-details-section">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="bullion-details-section-title">Linked Rental Details</span>
+            {activeRent && !isSold && (
+              <button
+                type="button"
+                className="btn btn-subtle btn-sm"
+                onClick={handleStopRent}
+                style={{ fontSize: '11px', color: '#DC2626', padding: '2px 6px' }}
+              >
+                End Lease
+              </button>
+            )}
+          </div>
+
+          {activeRent ? (
+            <div className="re-rental-details-card">
+              <div className="re-rental-top-row">
+                <div>
+                  <span className="re-rental-kicker">Tenant</span>
+                  <div className="re-rental-tenant-name">{activeRent.tenant_name}</div>
+                  {activeRent.tenant_contact && (
+                    <span className="re-rental-contact">{activeRent.tenant_contact}</span>
+                  )}
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <span className="re-rental-kicker">Monthly Rent</span>
+                  <div className="re-rental-amount">
+                    ₹ {formatCurrency(Number(activeRent.rent_amount))}
+                    <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--color-charcoal-muted)' }}>/mo</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="re-rental-dates-row">
+                <div className="re-rental-date-item">
+                  <span className="re-rental-kicker">Lease Period</span>
+                  <span className="re-rental-date-val">
+                    {formatDate(activeRent.rent_start_date)} –{' '}
+                    {activeRent.rent_end_date ? formatDate(activeRent.rent_end_date) : 'Ongoing'}
+                  </span>
+                </div>
+
+                {/* Next Rent Due Date clearly but discreetly shown */}
+                {activeRent.next_rent_due && (
+                  <div className="re-rental-due-badge">
+                    <Clock size={12} />
+                    <span>Next Due: <strong>{formatDate(activeRent.next_rent_due)}</strong></span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="bullion-details-doc-empty">
+              <span style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)' }}>
+                {isSold ? 'Property sold (no active lease)' : 'Property is currently vacant (no active lease)'}
+              </span>
+              {!isSold && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setIsRentModalOpen(true)}
+                  style={{ padding: '4px 10px', fontSize: '12px' }}
+                >
+                  <KeyRound size={12} style={{ marginRight: '4px' }} />
+                  Start Lease
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Section 4: Notes (if present) */}
+        {property.p_notes && property.p_notes.trim() && (
+          <div className="bullion-details-section">
+            <span className="bullion-details-section-title">Notes &amp; Description</span>
+            <div className="bullion-details-notes-box">
+              <p>{property.p_notes}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Section 5: Documents */}
+        <div className="bullion-details-section">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="bullion-details-section-title">Attached Documents ({docs.length})</span>
+            <button
+              type="button"
+              className="btn btn-subtle btn-sm"
+              onClick={() => setIsAddDocModalOpen(true)}
+              style={{ fontSize: '11px', padding: '2px 6px' }}
+            >
+              + Add
+            </button>
+          </div>
+
+          {docs.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {docs.map((d) => (
+                <div
+                  key={d.d_id}
+                  className="bullion-details-doc-card"
+                  onClick={() => {
+                    if (d.d_link) setSelectedPhotoUrl(d.d_link);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div className="bullion-details-doc-icon-wrap">
+                    <FileText size={18} color="var(--color-navy)" />
+                  </div>
+                  <div className="bullion-details-doc-info">
+                    <span className="bullion-details-doc-title">{d.d_name}</span>
+                    <span className="bullion-details-doc-sub">
+                      {d.d_category || 'Property Document'}
+                    </span>
+                  </div>
+                  <ExternalLink size={15} color="var(--color-charcoal-muted)" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bullion-details-doc-empty">
+              <span style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)' }}>
+                No deeds or tax receipts attached
+              </span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsAddDocModalOpen(true)}
+                style={{ padding: '4px 10px', fontSize: '12px' }}
+              >
+                + Attach Document
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Available Actions: Edit, Manage Rent, Documents, Mark as Sold, Delete */}
+      <div className="bullion-details-actions-bar" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        {/* 1. Edit */}
+        <button
+          type="button"
+          className="bullion-action-btn edit"
+          onClick={handleEdit}
+          title="Edit property details"
+        >
+          <Edit3 size={15} />
+          <span>Edit</span>
+        </button>
+
+        {/* 2. Manage Rent */}
+        <button
+          type="button"
+          className="bullion-action-btn doc"
+          onClick={() => {
+            if (activeRent) {
+              handleStopRent();
+            } else {
+              setIsRentModalOpen(true);
+            }
+          }}
+          title={activeRent ? 'End active lease' : 'Start new rent lease'}
+        >
+          <KeyRound size={15} />
+          <span>{activeRent ? 'End Lease' : 'Start Rent'}</span>
+        </button>
+
+        {/* 3. Documents */}
+        <button
+          type="button"
+          className="bullion-action-btn doc"
+          onClick={() => setIsAddDocModalOpen(true)}
+          title="Attach or manage documents"
+        >
+          <FileText size={15} />
+          <span>Documents</span>
+        </button>
+
+        {/* 4. Mark as Sold */}
+        {!isSold ? (
+          <button
+            type="button"
+            className="bullion-action-btn sell"
+            onClick={() => setIsSellModalOpen(true)}
+            title="Mark property as sold and record proceeds"
+          >
+            <Tag size={15} />
+            <span>Mark Sold</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="bullion-action-btn disabled"
+            disabled
+            title="Property already sold"
+          >
+            <CheckCircle2 size={15} />
+            <span>Sold</span>
+          </button>
+        )}
+
+        {/* 5. Delete */}
+        <button
+          type="button"
+          className="bullion-action-btn delete"
+          onClick={handleDelete}
+          title="Delete property"
+        >
+          <Trash2 size={15} />
+          <span>Delete</span>
+        </button>
+      </div>
+
+      {/* Attached Photo / Document Lightbox Modal */}
+      <PhotoModal
+        photoUrl={selectedPhotoUrl}
+        onClose={() => setSelectedPhotoUrl(null)}
+      />
+
+      {/* Start Rent Modal */}
+      <StartRentModal
+        isOpen={isRentModalOpen}
+        onClose={() => setIsRentModalOpen(false)}
+        property={property}
+        onStartRent={(rentPayload) => {
+          startRent(property.p_id, rentPayload);
+          onShowToast(`Lease started for tenant "${rentPayload.tenant_name}"!`, 'success');
+          setIsRentModalOpen(false);
+        }}
+      />
+
+      {/* Sell Property Modal */}
+      <SellPropertyModal
+        isOpen={isSellModalOpen}
+        onClose={() => setIsSellModalOpen(false)}
+        property={property}
+        onConfirmSale={(saleData) => {
+          sellProperty(property.p_id, saleData);
+          onShowToast(`Property marked as sold to ${saleData.buyer_name}. Proceeds moved to Realized Funds.`, 'success');
+          setIsSellModalOpen(false);
+          if (onClose) onClose();
+          navigate('/realized-funds');
+        }}
+      />
+
+      {/* Add Document Modal */}
+      <AddDocumentModal
+        isOpen={isAddDocModalOpen}
+        onClose={() => setIsAddDocModalOpen(false)}
+        propertyName={property.name}
+        onAddDocument={async (docPayload) => {
+          addDocument(property.p_id, {
+            d_name: docPayload.d_name,
+            d_link: docPayload.d_link,
+            r_id: docPayload.r_id
+          });
+          onShowToast(`Document "${docPayload.d_name}" attached.`, 'success');
+          setIsAddDocModalOpen(false);
+        }}
+      />
+    </div>
+  );
+};

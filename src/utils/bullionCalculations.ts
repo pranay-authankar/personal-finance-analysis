@@ -131,9 +131,9 @@ export interface WeightUnitOption {
 
 export const WEIGHT_UNIT_OPTIONS: WeightUnitOption[] = [
   { id: 'g', label: 'Grams (g)', shortLabel: 'g', toGramsFactor: 1 },
-  { id: 'kg', label: 'Kilograms (kg)', shortLabel: 'kg', toGramsFactor: 1000 },
   { id: 'mg', label: 'Milligrams (mg)', shortLabel: 'mg', toGramsFactor: 0.001 },
-  { id: 'pounds', label: 'Pounds (lbs)', shortLabel: 'lbs', toGramsFactor: 453.59237 },
+  { id: 'kg', label: 'Kilograms (kg)', shortLabel: 'kg', toGramsFactor: 1000 },
+  { id: 'pound', label: 'Pound (lbs)', shortLabel: 'lbs', toGramsFactor: 453.59237 },
   { id: 'tola', label: 'Tola (tola)', shortLabel: 'tola', toGramsFactor: 11.6638 },
   { id: 'oz', label: 'Troy Ounce (oz)', shortLabel: 'oz', toGramsFactor: 31.1034768 }
 ];
@@ -141,6 +141,9 @@ export const WEIGHT_UNIT_OPTIONS: WeightUnitOption[] = [
 export function convertToGrams(amount: number, unit?: string): number {
   if (!unit) return amount;
   const normalized = unit.trim().toLowerCase();
+  if (normalized === 'pound' || normalized === 'pounds' || normalized === 'lbs' || normalized === 'lb') {
+    return amount * 453.59237;
+  }
   const match = WEIGHT_UNIT_OPTIONS.find(
     (u) => u.id.toLowerCase() === normalized || u.shortLabel.toLowerCase() === normalized
   );
