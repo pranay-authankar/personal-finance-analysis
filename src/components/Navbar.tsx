@@ -112,7 +112,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
           >
             <Wallet size={18} strokeWidth={2} />
             <span>Realized Funds</span>
-            <span className="nav-pill-badge" style={{ background: '#0D9488' }}>{realizedCount}</span>
+            <span className="nav-pill-badge" style={{ background: '#0F1E36' }}>{realizedCount}</span>
           </button>
         </nav>
 

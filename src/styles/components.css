@@ -569,6 +569,11 @@
   background-color: var(--bg-surface-soft);
 }
 
+.fd-desktop-table tbody tr.selected {
+  background-color: var(--bg-surface-soft);
+  box-shadow: inset 3px 0 0 var(--color-navy);
+}
+
 .table-bank-col {
   display: flex;
   align-items: center;
