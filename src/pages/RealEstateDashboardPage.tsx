@@ -18,7 +18,8 @@ import {
   X,
   Building,
   LayoutGrid,
-  List as ListIcon
+  List as ListIcon,
+  Clock
 } from 'lucide-react';
 
 interface RealEstateDashboardPageProps {
@@ -58,8 +59,8 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
   // Search query
   const [search, setSearch] = useState('');
 
-  // Sort order: due_date | newest | price_desc | price_asc | name
-  const [sort, setSort] = useState<'due_date' | 'newest' | 'price_desc' | 'price_asc' | 'name'>('due_date');
+  // Sort order: due_date | due_amount_desc | newest | price_desc | price_asc | name
+  const [sort, setSort] = useState<'due_date' | 'due_amount_desc' | 'newest' | 'price_desc' | 'price_asc' | 'name'>('due_date');
 
   // View mode: Cards vs List
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
@@ -172,15 +173,47 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
       return dates[0];
     };
 
+    const isFullyPaid = (p: PropertyRecord): boolean => {
+      const fin = calculatePropertyFinances(p.p_id);
+      return fin.paymentLeft <= 0;
+    };
+
     if (sort === 'due_date') {
       list.sort((a, b) => {
+        const fullyPaidA = isFullyPaid(a);
+        const fullyPaidB = isFullyPaid(b);
+
+        // 1. All fully paid properties must be at last in the list
+        if (!fullyPaidA && fullyPaidB) return -1;
+        if (fullyPaidA && !fullyPaidB) return 1;
+
+        if (!fullyPaidA && !fullyPaidB) {
+          // Both have pending payments: sort by nearest upcoming/overdue due date
+          const dueA = getPropertyClosestDueDate(a);
+          const dueB = getPropertyClosestDueDate(b);
+          if (dueA && dueB) return dueA.localeCompare(dueB);
+          if (dueA && !dueB) return -1;
+          if (!dueA && dueB) return 1;
+          return (b.purchase_date || '').localeCompare(a.purchase_date || '');
+        }
+
+        // Both are fully paid: sort by nearest active rent due date or newest purchase
         const dueA = getPropertyClosestDueDate(a);
         const dueB = getPropertyClosestDueDate(b);
-        if (dueA && dueB) {
-          return dueA.localeCompare(dueB);
+        if (dueA && dueB) return dueA.localeCompare(dueB);
+        return (b.purchase_date || '').localeCompare(a.purchase_date || '');
+      });
+    } else if (sort === 'due_amount_desc') {
+      // 2. Sort based on highest due amount left
+      list.sort((a, b) => {
+        const finA = calculatePropertyFinances(a.p_id);
+        const finB = calculatePropertyFinances(b.p_id);
+        const dueA = finA.paymentLeft || 0;
+        const dueB = finB.paymentLeft || 0;
+
+        if (dueB !== dueA) {
+          return dueB - dueA; // highest due amount left first
         }
-        if (dueA && !dueB) return -1;
-        if (!dueA && dueB) return 1;
         return (b.purchase_date || '').localeCompare(a.purchase_date || '');
       });
     } else if (sort === 'newest') {
@@ -339,7 +372,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             </button>
           )}
 
-          {/* Sort By Dropdown (Feature 5) */}
+          {/* Sort By Dropdown (Features 1 & 2) */}
           <select
             className="re-sort-select"
             value={sort}
@@ -347,6 +380,7 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             aria-label="Sort properties"
           >
             <option value="due_date">Sort: Upcoming Due Date</option>
+            <option value="due_amount_desc">Sort: Highest Due Left</option>
             <option value="newest">Sort: Newest Purchase</option>
             <option value="price_desc">Sort: Price: High to Low</option>
             <option value="price_asc">Sort: Price: Low to High</option>
@@ -384,6 +418,34 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             </button>
           </div>
         </div>
+      </div>
+
+      {/* 4b. Compact Deadline Colour Map Reference Strip (Feature 3 - Occupies minimal space) */}
+      <div className="re-color-map-strip">
+        <span className="re-color-map-title">
+          <Clock size={11} />
+          <span>Deadline Colour Map:</span>
+        </span>
+        <span className="re-color-map-pill overdue" title="Payment deadline has passed">
+          <span className="re-color-map-dot" />
+          <span>Overdue</span>
+        </span>
+        <span className="re-color-map-pill urgent" title="Payment due within 15 days">
+          <span className="re-color-map-dot" />
+          <span>&lt; 15 Days</span>
+        </span>
+        <span className="re-color-map-pill medium" title="Payment due in 15 to 45 days">
+          <span className="re-color-map-dot" />
+          <span>15 – 45 Days</span>
+        </span>
+        <span className="re-color-map-pill upcoming" title="Payment due in more than 45 days">
+          <span className="re-color-map-dot" />
+          <span>&gt; 45 Days</span>
+        </span>
+        <span className="re-color-map-pill completed" title="100% Fully Paid">
+          <span className="re-color-map-dot" />
+          <span>Fully Paid</span>
+        </span>
       </div>
 
       {/* 5. Main Area: Clean Cards Grid or Empty State */}

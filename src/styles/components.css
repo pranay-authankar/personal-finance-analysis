@@ -4639,6 +4639,74 @@
   box-shadow: 0 0 0 2px rgba(15, 30, 54, 0.08);
 }
 
+/* Compact Deadline Colour Map Reference Strip */
+.re-color-map-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 7px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  font-size: 11px;
+  box-shadow: var(--shadow-xs);
+}
+
+.re-color-map-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-charcoal-muted);
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.re-color-map-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--color-charcoal-dark);
+}
+
+.re-color-map-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.re-color-map-pill.overdue .re-color-map-dot {
+  background: #DC2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
+}
+
+.re-color-map-pill.urgent .re-color-map-dot {
+  background: #EA580C;
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.2);
+}
+
+.re-color-map-pill.medium .re-color-map-dot {
+  background: #D97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.re-color-map-pill.upcoming .re-color-map-dot {
+  background: #0284C7;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+}
+
+.re-color-map-pill.completed .re-color-map-dot {
+  background: #16A34A;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+}
+
+
 
 
 
