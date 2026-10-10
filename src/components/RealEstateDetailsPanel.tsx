@@ -6,7 +6,8 @@ import { formatCurrency, formatDate } from '../utils/calculations';
 import {
   getRealEstateCategory,
   getRealEstateCategoryTheme,
-  isPropertyIncomplete
+  isPropertyIncomplete,
+  formatPropertyArea
 } from '../utils/realEstateUiHelpers';
 import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { PhotoModal } from './PhotoModal';
@@ -423,7 +424,7 @@ export const RealEstateDetailsPanel: React.FC<RealEstateDetailsPanelProps> = ({
               <div className="bullion-spec-item">
                 <span className="bullion-spec-label">Area / Size</span>
                 <span className="bullion-spec-val">
-                  {property.area_sqft} sq.ft
+                  {formatPropertyArea(property.area_sqft, property.area_unit)}
                 </span>
               </div>
             )}

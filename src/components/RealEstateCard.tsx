@@ -4,7 +4,8 @@ import { formatCurrency, formatDate } from '../utils/calculations';
 import {
   getRealEstateCategory,
   getRealEstateCategoryTheme,
-  isPropertyIncomplete
+  isPropertyIncomplete,
+  formatPropertyArea
 } from '../utils/realEstateUiHelpers';
 import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { MapPin, AlertCircle, Calendar, Clock } from 'lucide-react';
@@ -138,6 +139,22 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
         <span title={property.location || 'Location not specified'}>
           {property.location || 'Location not specified'}
         </span>
+        {property.area_sqft && (
+          <span
+            style={{
+              marginLeft: '6px',
+              paddingLeft: '6px',
+              borderLeft: '1px solid var(--border-light)',
+              fontWeight: 600,
+              color: 'var(--color-charcoal-muted)',
+              fontSize: '11px',
+              whiteSpace: 'nowrap'
+            }}
+            title={`Area: ${formatPropertyArea(property.area_sqft, property.area_unit)}`}
+          >
+            {formatPropertyArea(property.area_sqft, property.area_unit)}
+          </span>
+        )}
       </div>
 
       {/* Bottom Metrics: Purchase Price (+ Discreet Rent Due Date or Payment Status) */}

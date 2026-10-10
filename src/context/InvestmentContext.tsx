@@ -86,6 +86,7 @@ interface InvestmentContextType {
       name: string;
       location: string;
       area_sqft?: number | string;
+      area_unit?: string;
       purchase_price: number;
       party_name: string;
       party_contact: string;
@@ -1107,6 +1108,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       name: string;
       location: string;
       area_sqft?: number | string;
+      area_unit?: string;
       purchase_price: number;
       party_name: string;
       party_contact: string;
@@ -1141,7 +1143,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       p_type: data.p_type,
       name: data.name.trim(),
       location: data.location.trim(),
-      area_sqft: data.area_sqft ? String(data.area_sqft).trim() : '',
+      area_sqft: data.area_sqft !== undefined && data.area_sqft !== '' ? String(data.area_sqft).trim() : '',
+      area_unit: data.area_unit ? String(data.area_unit).trim() : undefined,
       purchase_price: Number(data.purchase_price) || 0,
       party_name: data.party_name.trim(),
       party_contact: data.party_contact.trim(),

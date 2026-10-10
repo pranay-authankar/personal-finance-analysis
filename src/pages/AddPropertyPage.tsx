@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import type { PropertyType } from '../types';
-import { normalizePropertyType } from '../utils/realEstateUiHelpers';
+import { normalizePropertyType, AREA_UNITS, parseAreaAndUnit, convertAreaToSqft } from '../utils/realEstateUiHelpers';
 import { formatCurrency } from '../utils/calculations';
 import { uploadDocumentFile } from '../utils/fileUpload';
 import {
@@ -67,6 +67,10 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
   const [initialPayment, setInitialPayment] = useState<string>('');
   const [paymentDeadline, setPaymentDeadline] = useState<string>('');
 
+  // Area Measurement
+  const [areaValue, setAreaValue] = useState<string>('');
+  const [areaUnit, setAreaUnit] = useState<string>('sq.ft');
+
   // Rental Setup Option
   const [isRented, setIsRented] = useState(false);
   const [tenantName, setTenantName] = useState('');
@@ -102,6 +106,9 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
         setPurchaseDate(existing.purchase_date || '');
         setNotes(existing.p_notes || '');
         setPaymentDeadline(existing.payment_deadline || '');
+        const parsedArea = parseAreaAndUnit(existing.area_sqft, existing.area_unit);
+        setAreaValue(parsedArea.value);
+        setAreaUnit(parsedArea.unit);
       }
     }
   }, [editId, getPropertyById]);
@@ -202,6 +209,8 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
         p_type: pType,
         name: trimmedName,
         location: trimmedLocation,
+        area_sqft: areaValue.trim() !== '' ? areaValue.trim() : undefined,
+        area_unit: areaValue.trim() !== '' ? areaUnit : undefined,
         purchase_price: numPrice,
         party_name: partyName.trim(),
         party_contact: partyContact.trim(),
@@ -217,6 +226,8 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
           p_type: pType,
           name: trimmedName,
           location: trimmedLocation,
+          area_sqft: areaValue.trim() !== '' ? areaValue.trim() : undefined,
+          area_unit: areaValue.trim() !== '' ? areaUnit : undefined,
           purchase_price: numPrice,
           party_name: partyName.trim(),
           party_contact: partyContact.trim(),
@@ -372,6 +383,45 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
               onChange={(e) => setLocation(e.target.value)}
               required
             />
+          </div>
+
+          {/* 3. Area Measurement: Value as x + Units dropdown (sq.ft, acre, sq.yard, etc.) */}
+          <div className="form-group">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <label className="form-label" htmlFor="pageArea" style={{ fontWeight: 600, color: 'var(--color-navy)', margin: 0 }}>
+                Area / Dimensions <span className="text-optional">(Optional)</span>
+              </label>
+              {areaValue && areaUnit !== 'sq.ft' && Number(areaValue) > 0 && (
+                <span style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', fontWeight: 500 }}>
+                  ≈ {convertAreaToSqft(Number(areaValue), areaUnit).toLocaleString('en-IN')} sq.ft
+                </span>
+              )}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px', gap: '8px' }}>
+              <input
+                id="pageArea"
+                type="number"
+                min="0"
+                step="any"
+                className="form-input"
+                placeholder="e.g. 1200 or 2.5"
+                value={areaValue}
+                onChange={(e) => setAreaValue(e.target.value)}
+              />
+              <select
+                id="pageAreaUnit"
+                className="form-select"
+                value={areaUnit}
+                onChange={(e) => setAreaUnit(e.target.value)}
+                aria-label="Area Measurement Unit"
+              >
+                {AREA_UNITS.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* 3. Purchase Price & Payment Terms */}

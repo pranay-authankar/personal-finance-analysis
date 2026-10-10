@@ -97,6 +97,7 @@ export const PROPERTIES_COLUMNS: (keyof PropertyRecord)[] = [
   'name',
   'location',
   'area_sqft',
+  'area_unit',
   'purchase_price',
   'party_name',
   'party_contact',
@@ -322,7 +323,7 @@ export const DEFAULT_ASSETS_CSV = `a_id,member_id,asset_type,asset_name,asset_st
 export const DEFAULT_FDS_CSV = `fd_id,a_id,bank_name,acc_number,principal,interest_rate,start_date,maturity_date,actual_end_date\n`;
 export const DEFAULT_POST_OFFICE_CSV = `po_id,a_id,scheme_name,account_number,principal,interest_rate,start_date,maturity_date,actual_end_date,scheme_status\n`;
 export const DEFAULT_BULLIONS_CSV = `b_id,a_id,b_type,purchase_value,purchase_date,b_status\n`;
-export const DEFAULT_PROPERTIES_CSV = `p_id,a_id,p_type,name,location,area_sqft,purchase_price,party_name,party_contact,purchase_date,p_notes\n`;
+export const DEFAULT_PROPERTIES_CSV = `p_id,a_id,p_type,name,location,area_sqft,area_unit,purchase_price,party_name,party_contact,purchase_date,p_notes,payment_deadline\n`;
 export const DEFAULT_RENTS_CSV = `r_id,p_id,tenant_name,tenant_contact,rent_amount,rent_start_date,rent_end_date,next_rent_due,r_notes\n`;
 export const DEFAULT_ASSET_SALES_CSV = `sale_id,a_id,buyer_name,buyer_contact,sale_price,sale_date,payment_due_date,sale_notes\n`;
 export const DEFAULT_PAYMENTS_CSV = `payment_id,a_id,payment_type,payment_context,amount,payment_date,due_date,status,notes\n`;

@@ -90,7 +90,8 @@ export interface PropertyRecord {
   p_type: PropertyType; // LAND / COMMERCIAL_PROPERTY / PRIVATE_PROPERTIES
   name: string;
   location: string;
-  area_sqft?: number | string; // Area in Sq.ft
+  area_sqft?: number | string; // Area numeric value or legacy string
+  area_unit?: string; // Unit (sq.ft, acre, sq.yard, sq.m, guntha, bigha, hectare, cent)
   purchase_price: number;
   party_name: string; // seller/party from whom the property was purchased
   party_contact: string;

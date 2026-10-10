@@ -6,6 +6,7 @@ import {
   PROPERTY_TYPE_CONFIG,
   getDeadlineClassification
 } from '../utils/deadlinesColorMap';
+import { formatPropertyArea } from '../utils/realEstateUiHelpers';
 import { ArrowRight, MapPin, AlertCircle, Clock, CheckCircle2 } from 'lucide-react';
 
 interface PropertyWithMeta {
@@ -274,7 +275,9 @@ export const RealEstateTable: React.FC<RealEstateTableProps> = ({
                     <MapPin size={12} color="var(--color-primary)" />
                     {property.location}
                     {property.area_sqft && (
-                      <span style={{ marginLeft: '6px', fontWeight: 600, color: 'var(--text-secondary)' }}>• {property.area_sqft} Sq.ft</span>
+                      <span style={{ marginLeft: '6px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        • {formatPropertyArea(property.area_sqft, property.area_unit)}
+                      </span>
                     )}
                   </span>
                 </td>
