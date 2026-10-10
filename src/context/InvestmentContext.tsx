@@ -293,10 +293,20 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
             if (detectedScheme === 'RD') {
               // Derived strictly from contributions.csv
-              const contribs = csvDb.contributions.filter((c) => c.a_id === po.a_id);
+              let contribs = csvDb.contributions.filter((c) => c.a_id === po.a_id);
+              if (contribs.length === 0) {
+                const monthlyAmt = Number(po.principal) || 5000;
+                contribs = generateRdSchedule(po.a_id, monthlyAmt, po.start_date, 1, 60);
+                csvDb.addContributions(contribs);
+              }
               const rdMetrics = calculateRdDerivedMetrics(contribs);
               const firstContrib = contribs[0];
-              const monthlyDeposit = firstContrib ? Number(firstContrib.amount) || 0 : 0;
+              const monthlyDeposit = firstContrib ? Number(firstContrib.amount) || 0 : (Number(po.principal) || 5000);
+
+              let effectiveNextDepositDate = rdMetrics.nextDepositDate;
+              if (!effectiveNextDepositDate && po.start_date) {
+                effectiveNextDepositDate = calculateNextMonthlyInterestDate(po.start_date);
+              }
 
               memberPo.push({
                 id: po.po_id,
@@ -304,7 +314,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 schemeType: 'RD',
                 schemeName: po.scheme_name || 'Recurring Deposit (RD)',
                 accountNumber: po.account_number,
-                amount: rdMetrics.totalDepositedAmount, // derived strictly from contributions.csv
+                amount: rdMetrics.totalDepositedAmount || (Number(po.principal) || 0),
                 interestRate: Number(po.interest_rate) || 0,
                 openingDate: po.start_date,
                 maturityDate: po.maturity_date,
@@ -315,8 +325,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 totalDepositedAmount: rdMetrics.totalDepositedAmount,
                 depositsMadeCount: rdMetrics.depositsMadeCount,
                 missedDepositsCount: rdMetrics.missedDepositsCount,
-                nextDepositDate: rdMetrics.nextDepositDate,
-                upcomingDepositAmount: rdMetrics.upcomingDepositAmount
+                nextDepositDate: effectiveNextDepositDate,
+                upcomingDepositAmount: rdMetrics.upcomingDepositAmount || monthlyDeposit
               });
             } else if (detectedScheme === 'MIS') {
               const expectedMonthlyInterest = calculateMISMonthlyPayout(
@@ -837,12 +847,14 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
 
       // If RD, generate recurring monthly schedule into contributions.csv
-      if (isRd && poData.monthlyDeposit) {
+      const rdMonthly = Number(poData.monthlyDeposit || (poData as any).monthlyInstallment) || 0;
+      if (isRd && rdMonthly > 0) {
+        const initialPaid = poData.initialPaidMonths !== undefined ? Number(poData.initialPaidMonths) : 1;
         const schedule = generateRdSchedule(
           a_id,
-          Number(poData.monthlyDeposit),
+          rdMonthly,
           poData.openingDate || new Date().toISOString().split('T')[0],
-          poData.initialPaidMonths !== undefined ? poData.initialPaidMonths : 1,
+          initialPaid,
           60
         );
         csvDb.addContributions(schedule);

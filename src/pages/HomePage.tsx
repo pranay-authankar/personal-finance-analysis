@@ -4,6 +4,10 @@ import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
 import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { getEffectiveBullionValue } from '../utils/bullionCalculations';
+import {
+  calculateNextMonthlyInterestDate,
+  calculateNextQuarterlyInterestDate
+} from '../utils/postOfficeCalculations';
 import { DonutChart } from '../components/DonutChart';
 import type { DeadlineClassification } from '../types';
 import {
@@ -99,32 +103,100 @@ export const HomePage: React.FC = () => {
 
     // Post Office
     activePos.forEach((p) => {
-      if (p.maturityDate) {
-        const badge = getDeadlineClassification(p.maturityDate);
-        if (badge) {
-          events.push({
-            id: `po_mat_${p.id}`,
-            title: `${p.schemeName}`,
-            category: 'Post Office',
-            date: p.maturityDate,
-            amount: p.amount,
-            route: `/post-office/${p.id}`,
-            badge
-          });
+      const isRd =
+        p.schemeType === 'RD' ||
+        (p.schemeName ? p.schemeName.toLowerCase().includes('recurring') || p.schemeName.toLowerCase().includes('(rd)') : false);
+      const isMis =
+        p.schemeType === 'MIS' ||
+        (p.schemeName ? p.schemeName.toLowerCase().includes('monthly income') || p.schemeName.toLowerCase().includes('(mis)') : false);
+      const isScss =
+        p.schemeType === 'SCSS' ||
+        (p.schemeName ? p.schemeName.toLowerCase().includes('senior citizen') || p.schemeName.toLowerCase().includes('(scss)') : false);
+
+      if (isRd) {
+        // RD has regular monthly recurring deposits.
+        // Track the next installment due date, never the 5-year (60/61-month) maturity date!
+        const nextDate = p.nextDepositDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate) : '');
+        const amount = p.upcomingDepositAmount || p.monthlyDeposit || (p as any).monthlyInstallment || 0;
+        if (nextDate) {
+          const badge = getDeadlineClassification(nextDate);
+          if (badge) {
+            events.push({
+              id: `po_dep_${p.id}`,
+              title: `${p.schemeName} Installment`,
+              category: 'Post Office',
+              date: nextDate,
+              amount,
+              route: `/post-office/${p.id}`,
+              badge
+            });
+          }
+        } else if (p.maturityDate && (p.depositsMadeCount || 0) >= 60) {
+          // All 60 deposits completed, waiting for maturity
+          const badge = getDeadlineClassification(p.maturityDate);
+          if (badge) {
+            events.push({
+              id: `po_mat_${p.id}`,
+              title: `${p.schemeName} Maturity`,
+              category: 'Post Office',
+              date: p.maturityDate,
+              amount: p.maturityAmount || p.amount,
+              route: `/post-office/${p.id}`,
+              badge
+            });
+          }
         }
-      }
-      if (p.nextDepositDate && p.monthlyDeposit) {
-        const badge = getDeadlineClassification(p.nextDepositDate);
-        if (badge) {
-          events.push({
-            id: `po_dep_${p.id}`,
-            title: `${p.schemeName} RD Deposit`,
-            category: 'Post Office',
-            date: p.nextDepositDate,
-            amount: p.monthlyDeposit,
-            route: `/post-office/${p.id}`,
-            badge
-          });
+      } else if (isMis) {
+        // MIS pays monthly interest
+        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextMonthlyInterestDate(p.openingDate) : '');
+        const amount = p.expectedMonthlyInterest || p.monthlyPayout || 0;
+        if (nextDate) {
+          const badge = getDeadlineClassification(nextDate);
+          if (badge) {
+            events.push({
+              id: `po_int_${p.id}`,
+              title: `${p.schemeName} Payout`,
+              category: 'Post Office',
+              date: nextDate,
+              amount,
+              route: `/post-office/${p.id}`,
+              badge
+            });
+          }
+        }
+      } else if (isScss) {
+        // SCSS pays quarterly interest
+        const nextDate = p.nextInterestDate || (p.openingDate ? calculateNextQuarterlyInterestDate(p.openingDate) : '');
+        const amount = p.expectedQuarterlyInterest || p.quarterlyPayout || 0;
+        if (nextDate) {
+          const badge = getDeadlineClassification(nextDate);
+          if (badge) {
+            events.push({
+              id: `po_int_${p.id}`,
+              title: `${p.schemeName} Payout`,
+              category: 'Post Office',
+              date: nextDate,
+              amount,
+              route: `/post-office/${p.id}`,
+              badge
+            });
+          }
+        }
+      } else {
+        // Term Deposits (TD)
+        if (p.maturityDate) {
+          const badge = getDeadlineClassification(p.maturityDate);
+          if (badge) {
+            events.push({
+              id: `po_mat_${p.id}`,
+              title: `${p.schemeName}`,
+              category: 'Post Office',
+              date: p.maturityDate,
+              amount: p.amount,
+              route: `/post-office/${p.id}`,
+              badge
+            });
+          }
         }
       }
     });

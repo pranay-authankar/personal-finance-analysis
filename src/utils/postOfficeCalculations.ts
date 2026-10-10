@@ -290,10 +290,11 @@ export function generateRdSchedule(
     // Determine status
     let status = 'PENDING';
     let paymentDate = '';
+    const todayStr = now.toISOString().split('T')[0];
     if (m < initialPaidMonths) {
       status = 'PAID';
-      paymentDate = dueDateStr <= now.toISOString().split('T')[0] ? dueDateStr : now.toISOString().split('T')[0];
-    } else if (dueDate < now && status !== 'PAID') {
+      paymentDate = dueDateStr <= todayStr ? dueDateStr : todayStr;
+    } else if (dueDateStr < todayStr && status !== 'PAID') {
       status = 'MISSED';
     }
 

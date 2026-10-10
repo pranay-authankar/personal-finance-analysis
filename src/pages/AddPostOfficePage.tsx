@@ -59,7 +59,7 @@ export const AddPostOfficePage: React.FC<AddPostOfficePageProps> = ({ onShowToas
 
   // Scheme-specific state: RD
   const [rdMonthlyDeposit, setRdMonthlyDeposit] = useState<number | ''>(5000);
-  const [rdInitialPaidMonths, setRdInitialPaidMonths] = useState<number>(1);
+  const [rdInitialPaidMonths, setRdInitialPaidMonths] = useState<number | ''>(1);
 
   // Scheme-specific state: SCSS
   const [scssPrincipal, setScssPrincipal] = useState<number | ''>(500000);
@@ -191,7 +191,9 @@ export const AddPostOfficePage: React.FC<AddPostOfficePageProps> = ({ onShowToas
         onShowToast('Minimum monthly deposit for RD is ₹100.', 'warn');
         return;
       }
-      depositAmount = monthly * (Number(rdInitialPaidMonths) || 1);
+      const paidMonths =
+        rdInitialPaidMonths !== '' && !isNaN(Number(rdInitialPaidMonths)) ? Number(rdInitialPaidMonths) : 1;
+      depositAmount = monthly * paidMonths;
     } else if (selectedScheme === 'SCSS') {
       depositAmount = Number(scssPrincipal);
       if (!depositAmount || depositAmount < 1000) {
@@ -228,7 +230,12 @@ export const AddPostOfficePage: React.FC<AddPostOfficePageProps> = ({ onShowToas
       monthlyPayout: misPayout,
       quarterlyPayout: scssPayout,
       maturityAmount: rdCalc ? rdCalc.maturityAmount : undefined,
-      initialPaidMonths: selectedScheme === 'RD' && !editId ? Number(rdInitialPaidMonths) || 1 : undefined
+      initialPaidMonths:
+        selectedScheme === 'RD' && !editId
+          ? rdInitialPaidMonths !== '' && !isNaN(Number(rdInitialPaidMonths))
+            ? Number(rdInitialPaidMonths)
+            : 1
+          : undefined
     });
 
     onShowToast(
@@ -587,11 +594,15 @@ export const AddPostOfficePage: React.FC<AddPostOfficePageProps> = ({ onShowToas
                     <input
                       id="rdInstallmentInput"
                       type="number"
-                      min={1}
+                      min={0}
                       max={60}
                       className="form-input"
                       value={rdInitialPaidMonths}
-                      onChange={(e) => setRdInitialPaidMonths(Number(e.target.value) || 1)}
+                      onChange={(e) =>
+                        setRdInitialPaidMonths(
+                          e.target.value === '' ? ('' as any) : Math.max(0, Math.min(60, Number(e.target.value)))
+                        )
+                      }
                     />
                   </div>
                 )}
