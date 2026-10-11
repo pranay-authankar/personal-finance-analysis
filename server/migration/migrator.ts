@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import crypto from 'node:crypto';
 import type { Database } from 'better-sqlite3-multiple-ciphers';
 
@@ -44,6 +45,8 @@ export interface MigrationAuditReport {
   financials: Record<string, FinancialReconciliationMetric>;
   totalDocumentsChecked: number;
   totalDocumentsMissing: number;
+  missingDocumentFiles: string[];
+  unreferencedUploadFiles: string[];
   foreignKeyViolations: number;
   success: boolean;
   message: string;
@@ -57,6 +60,7 @@ export interface MigrationOptions {
   targetMetaPath: string;
   masterPassword: string;
   isDryRun?: boolean;
+  allowMissingAttachments?: boolean;
 }
 
 // ============================================================================
@@ -152,6 +156,32 @@ export function parseCsvRaw(csvText: string): Array<Record<string, string>> {
 }
 
 // ============================================================================
+// Document Verification Helpers
+// ============================================================================
+
+export function extractDocFilename(link: string): string {
+  if (!link) return '';
+  return link.replace(/^\/?uploads\//i, '').trim();
+}
+
+export function getUploadFilesRecursive(dir: string, baseDir = dir): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const results: string[] = [];
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...getUploadFilesRecursive(full, baseDir));
+      } else if (entry.isFile()) {
+        results.push(path.relative(baseDir, full).replace(/\\/g, '/'));
+      }
+    }
+  } catch {}
+  return results;
+}
+
+// ============================================================================
 // Core Migration Engine
 // ============================================================================
 
@@ -162,54 +192,88 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     targetDbPath,
     targetMetaPath,
     masterPassword,
-    isDryRun = false
+    isDryRun = false,
+    allowMissingAttachments = false
   } = options;
+
+  let dryRunTempDir: string | null = null;
+  let effectiveDbPath = targetDbPath;
+  let effectiveMetaPath = targetMetaPath;
+
+  if (isDryRun) {
+    dryRunTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'familyvault_dryrun_'));
+    effectiveDbPath = path.join(dryRunTempDir, 'dryrun_familyvault.db');
+    effectiveMetaPath = path.join(dryRunTempDir, 'dryrun_vault_meta.json');
+  } else {
+    // 1. Partial vault and overwrite protection (Real Migration)
+    const dbExists = fs.existsSync(targetDbPath);
+    const metaExists = fs.existsSync(targetMetaPath);
+
+    if (dbExists || metaExists) {
+      if (dbExists && !metaExists) {
+        throw new Error(
+          `Refusing to initialize: Existing database found at ${targetDbPath} without metadata file (${targetMetaPath}). Incomplete vault state detected. Cannot safely verify or overwrite existing vault without explicit manual recovery.`
+        );
+      }
+      if (!dbExists && metaExists) {
+        throw new Error(
+          `Refusing to initialize: Existing metadata found at ${targetMetaPath} without database file (${targetDbPath}). Incomplete vault state detected.`
+        );
+      }
+
+      // Both exist: Inspect safely without modifying or deleting
+      try {
+        const meta = JSON.parse(fs.readFileSync(targetMetaPath, 'utf8')) as VaultMetadata;
+        const salt = Buffer.from(meta.kdf.saltHex, 'hex');
+        const keyBuffer = deriveEncryptionKey(masterPassword, salt);
+        const dbCheck = openEncryptedDatabase(targetDbPath, keyBuffer.toString('hex'));
+        wipeBuffer(keyBuffer);
+
+        const ledgerCount = dbCheck
+          .prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='_migration_ledger';")
+          .get() as { count: number };
+
+        if (ledgerCount?.count > 0) {
+          const rows = dbCheck.prepare('SELECT count(*) as count FROM _migration_ledger;').get() as { count: number };
+          if (rows?.count > 0) {
+            dbCheck.close();
+            throw new Error('Database already exists and contains completed migration records. Refusing to duplicate data.');
+          }
+        }
+
+        const tableCount = dbCheck
+          .prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+          .get() as { count: number };
+        dbCheck.close();
+
+        if (tableCount?.count > 0) {
+          throw new Error(`Refusing to overwrite: Vault database already contains initialized tables at ${targetDbPath}.`);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Refusing to duplicate') || msg.includes('Refusing to overwrite')) {
+          throw err;
+        }
+        throw new Error(`Cannot safely verify existing vault at ${targetDbPath}: ${msg}`);
+      }
+    }
+  }
 
   const timestamp = new Date().toISOString();
   const report: MigrationAuditReport = {
     timestamp,
     isDryRun,
-    dbPath: targetDbPath,
+    dbPath: effectiveDbPath,
     tables: {},
     financials: {},
     totalDocumentsChecked: 0,
     totalDocumentsMissing: 0,
+    missingDocumentFiles: [],
+    unreferencedUploadFiles: [],
     foreignKeyViolations: 0,
     success: false,
     message: ''
   };
-
-  // 1. Check if database already exists with previous migration
-  if (fs.existsSync(targetDbPath) && fs.existsSync(targetMetaPath)) {
-    // Check if migration has already been recorded
-    try {
-      const meta = JSON.parse(fs.readFileSync(targetMetaPath, 'utf8')) as VaultMetadata;
-      const salt = Buffer.from(meta.kdf.saltHex, 'hex');
-      const keyBuffer = deriveEncryptionKey(masterPassword, salt);
-      const dbCheck = openEncryptedDatabase(targetDbPath, keyBuffer.toString('hex'));
-      wipeBuffer(keyBuffer);
-
-      const ledgerCount = dbCheck
-        .prepare("SELECT count(*) as count FROM sqlite_master WHERE type='table' AND name='_migration_ledger';")
-        .get() as { count: number };
-
-      if (ledgerCount?.count > 0) {
-        const rows = dbCheck.prepare('SELECT count(*) as count FROM _migration_ledger;').get() as { count: number };
-        if (rows?.count > 0) {
-          dbCheck.close();
-          throw new Error('Database already exists and contains completed migration records. Refusing to duplicate data.');
-        }
-      }
-      dbCheck.close();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('Refusing to duplicate')) {
-        throw err;
-      }
-      // If password failed or DB corrupt, halt
-      throw new Error(`Cannot verify existing database at ${targetDbPath}: ${msg}`);
-    }
-  }
 
   // 2. Read and parse all 11 CSV files
   const tableFiles = [
@@ -243,8 +307,8 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
   let salt: Buffer;
   let isNewVault = true;
 
-  if (fs.existsSync(targetMetaPath)) {
-    const meta = JSON.parse(fs.readFileSync(targetMetaPath, 'utf8')) as VaultMetadata;
+  if (fs.existsSync(effectiveMetaPath)) {
+    const meta = JSON.parse(fs.readFileSync(effectiveMetaPath, 'utf8')) as VaultMetadata;
     salt = Buffer.from(meta.kdf.saltHex, 'hex');
     isNewVault = false;
   } else {
@@ -256,7 +320,8 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
 
   let db: Database | null = null;
   try {
-    db = openEncryptedDatabase(targetDbPath, keyHex);
+    fs.mkdirSync(path.dirname(effectiveDbPath), { recursive: true });
+    db = openEncryptedDatabase(effectiveDbPath, keyHex);
     initializeSchema(db);
 
     if (!verifyDatabaseConnection(db)) {
@@ -508,16 +573,43 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     }
 
     // -------------------------------------------------------------------------
-    // 7. Document Reference Verification
+    // 7. Document Reference Verification & Unreferenced Detection
     // -------------------------------------------------------------------------
+    const referencedFiles = new Set<string>();
+
     for (const doc of parsedTables.documents) {
-      report.totalDocumentsChecked++;
-      if (doc.d_link && doc.d_link.startsWith('/uploads/')) {
-        const relFile = doc.d_link.replace('/uploads/', '');
-        const fullDocPath = path.join(sourceUploadsDir, relFile);
-        if (!fs.existsSync(fullDocPath)) {
-          report.totalDocumentsMissing++;
+      if (doc.d_link && doc.d_link.trim()) {
+        report.totalDocumentsChecked++;
+        const relFile = extractDocFilename(doc.d_link);
+        if (relFile) {
+          const normalized = relFile.replace(/\\/g, '/');
+          referencedFiles.add(normalized);
+          const fullDocPath = path.join(sourceUploadsDir, relFile);
+          if (!fs.existsSync(fullDocPath)) {
+            report.totalDocumentsMissing++;
+            if (!report.missingDocumentFiles.includes(normalized)) {
+              report.missingDocumentFiles.push(normalized);
+            }
+          }
         }
+      }
+    }
+
+    if (fs.existsSync(sourceUploadsDir)) {
+      const allUploads = getUploadFilesRecursive(sourceUploadsDir);
+      for (const f of allUploads) {
+        if (!referencedFiles.has(f)) {
+          report.unreferencedUploadFiles.push(f);
+        }
+      }
+    }
+
+    // Fail closed on missing referenced documents by default
+    if (report.missingDocumentFiles.length > 0) {
+      if (!allowMissingAttachments) {
+        throw new Error(
+          `Migration aborted: ${report.missingDocumentFiles.length} referenced document(s) missing from upload storage (${sourceUploadsDir}): ${report.missingDocumentFiles.join(', ')}. Use allowMissingAttachments option to explicitly override.`
+        );
       }
     }
 
@@ -549,7 +641,7 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
       }
     };
 
-    // 8.1 Active FDs
+    // 8.1 Active Fixed Deposits
     const sourceFdSum = parsedTables.fds
       .filter((f) => {
         const ast = parsedTables.assets.find((a) => a.a_id === f.a_id);
@@ -560,10 +652,60 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     reconcileFinancials(
       'Fixed Deposits',
       sourceFdSum,
-      `SELECT sum(f.principal) as total FROM fds f JOIN assets a ON f.a_id = a.a_id WHERE (f.actual_end_date IS NULL OR f.actual_end_date = '') AND a.asset_status = 'ACTIVE'`
+      `SELECT coalesce(sum(f.principal), 0) as total FROM fds f JOIN assets a ON f.a_id = a.a_id WHERE (f.actual_end_date IS NULL OR f.actual_end_date = '') AND a.asset_status = 'ACTIVE'`
     );
 
-    // 8.2 Active Bullions
+    // 8.2 Active Post Office Schemes (TD, MIS, SCSS principal + RD paid contributions)
+    const activePoRecords = parsedTables.post_office.filter((p) => {
+      const ast = parsedTables.assets.find((a) => a.a_id === p.a_id);
+      return (!p.actual_end_date || p.actual_end_date.trim() === '') && ast?.asset_status === 'ACTIVE';
+    });
+
+    let sourcePoSum = 0;
+    for (const p of activePoRecords) {
+      const sName = (p.scheme_name || '').toLowerCase();
+      const isRd = sName.includes('recurring') || sName.includes('(rd)');
+      if (isRd) {
+        const paidContribs = parsedTables.contributions.filter(
+          (c) => c.a_id === p.a_id && c.status === 'PAID'
+        );
+        sourcePoSum += paidContribs.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+      } else {
+        sourcePoSum += Number(p.principal) || 0;
+      }
+    }
+
+    reconcileFinancials(
+      'Post Office',
+      sourcePoSum,
+      `SELECT (
+        coalesce((
+          SELECT sum(p.principal)
+          FROM post_office p
+          JOIN assets a ON p.a_id = a.a_id
+          WHERE (p.actual_end_date IS NULL OR p.actual_end_date = '')
+            AND a.asset_status = 'ACTIVE'
+            AND lower(p.scheme_name) NOT LIKE '%recurring%'
+            AND lower(p.scheme_name) NOT LIKE '%(rd)%'
+        ), 0)
+        +
+        coalesce((
+          SELECT sum(c.amount)
+          FROM contributions c
+          WHERE c.status = 'PAID'
+            AND c.a_id IN (
+              SELECT p.a_id
+              FROM post_office p
+              JOIN assets a ON p.a_id = a.a_id
+              WHERE (p.actual_end_date IS NULL OR p.actual_end_date = '')
+                AND a.asset_status = 'ACTIVE'
+                AND (lower(p.scheme_name) LIKE '%recurring%' OR lower(p.scheme_name) LIKE '%(rd)%')
+            )
+        ), 0)
+      ) as total`
+    );
+
+    // 8.3 Active Bullions (HELD status)
     const sourceBulSum = parsedTables.bullions
       .filter((b) => {
         const ast = parsedTables.assets.find((a) => a.a_id === b.a_id);
@@ -574,10 +716,10 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     reconcileFinancials(
       'Bullions',
       sourceBulSum,
-      `SELECT sum(b.purchase_value) as total FROM bullions b JOIN assets a ON b.a_id = a.a_id WHERE b.b_status = 'HELD' AND a.asset_status = 'ACTIVE'`
+      `SELECT coalesce(sum(b.purchase_value), 0) as total FROM bullions b JOIN assets a ON b.a_id = a.a_id WHERE b.b_status = 'HELD' AND a.asset_status = 'ACTIVE'`
     );
 
-    // 8.3 Active Real Estate
+    // 8.4 Active Real Estate
     const sourcePropSum = parsedTables.properties
       .filter((p) => {
         const ast = parsedTables.assets.find((a) => a.a_id === p.a_id);
@@ -588,10 +730,10 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     reconcileFinancials(
       'Real Estate',
       sourcePropSum,
-      `SELECT sum(p.purchase_price) as total FROM properties p JOIN assets a ON p.a_id = a.a_id WHERE a.asset_status = 'ACTIVE'`
+      `SELECT coalesce(sum(p.purchase_price), 0) as total FROM properties p JOIN assets a ON p.a_id = a.a_id WHERE a.asset_status = 'ACTIVE'`
     );
 
-    // 8.4 Realized Funds (Maturity & Sales)
+    // 8.5 Realized Funds (Maturity & Sales Proceeds)
     const sourceRealizedSum = parsedTables.payments
       .filter(
         (p) =>
@@ -604,7 +746,27 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     reconcileFinancials(
       'Realized Funds',
       sourceRealizedSum,
-      `SELECT sum(amount) as total FROM payments WHERE payment_type = 'RECEIVED' AND payment_context IN ('SALE', 'MATURITY') AND status IN ('RECEIVED', 'PAID')`
+      `SELECT coalesce(sum(amount), 0) as total FROM payments WHERE payment_type = 'RECEIVED' AND payment_context IN ('SALE', 'MATURITY') AND status IN ('RECEIVED', 'PAID')`
+    );
+
+    // 8.6 Overall Net Worth
+    const sourceNetWorth = sourceFdSum + sourcePoSum + sourceBulSum + sourcePropSum + sourceRealizedSum;
+    reconcileFinancials(
+      'Overall Net Worth',
+      sourceNetWorth,
+      `SELECT (
+        coalesce((SELECT sum(f.principal) FROM fds f JOIN assets a ON f.a_id = a.a_id WHERE (f.actual_end_date IS NULL OR f.actual_end_date = '') AND a.asset_status = 'ACTIVE'), 0)
+        +
+        coalesce((SELECT sum(p.principal) FROM post_office p JOIN assets a ON p.a_id = a.a_id WHERE (p.actual_end_date IS NULL OR p.actual_end_date = '') AND a.asset_status = 'ACTIVE' AND lower(p.scheme_name) NOT LIKE '%recurring%' AND lower(p.scheme_name) NOT LIKE '%(rd)%'), 0)
+        +
+        coalesce((SELECT sum(c.amount) FROM contributions c WHERE c.status = 'PAID' AND c.a_id IN (SELECT p.a_id FROM post_office p JOIN assets a ON p.a_id = a.a_id WHERE (p.actual_end_date IS NULL OR p.actual_end_date = '') AND a.asset_status = 'ACTIVE' AND (lower(p.scheme_name) LIKE '%recurring%' OR lower(p.scheme_name) LIKE '%(rd)%'))), 0)
+        +
+        coalesce((SELECT sum(b.purchase_value) FROM bullions b JOIN assets a ON b.a_id = a.a_id WHERE b.b_status = 'HELD' AND a.asset_status = 'ACTIVE'), 0)
+        +
+        coalesce((SELECT sum(p.purchase_price) FROM properties p JOIN assets a ON p.a_id = a.a_id WHERE a.asset_status = 'ACTIVE'), 0)
+        +
+        coalesce((SELECT sum(amount) FROM payments WHERE payment_type = 'RECEIVED' AND payment_context IN ('SALE', 'MATURITY') AND status IN ('RECEIVED', 'PAID')), 0)
+      ) as total`
     );
 
     // -------------------------------------------------------------------------
@@ -630,7 +792,7 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
     if (isDryRun) {
       db.exec('ROLLBACK;');
       report.success = true;
-      report.message = 'Dry run completed successfully. All validations passed; changes were rolled back as requested.';
+      report.message = 'Dry run completed successfully. All validations passed in isolated temporary vault.';
     } else {
       db.exec('COMMIT;');
 
@@ -648,8 +810,8 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
           createdAt: new Date().toISOString(),
           lastUnlockedAt: new Date().toISOString()
         };
-        fs.mkdirSync(path.dirname(targetMetaPath), { recursive: true });
-        fs.writeFileSync(targetMetaPath, JSON.stringify(meta, null, 2), 'utf8');
+        fs.mkdirSync(path.dirname(effectiveMetaPath), { recursive: true });
+        fs.writeFileSync(effectiveMetaPath, JSON.stringify(meta, null, 2), 'utf8');
       }
 
       report.success = true;
@@ -677,5 +839,10 @@ export function runMigration(options: MigrationOptions): MigrationAuditReport {
       } catch {}
     }
     wipeBuffer(keyBuffer);
+    if (dryRunTempDir && fs.existsSync(dryRunTempDir)) {
+      try {
+        fs.rmSync(dryRunTempDir, { recursive: true, force: true });
+      } catch {}
+    }
   }
 }

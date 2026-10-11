@@ -180,8 +180,14 @@ assert.strictEqual(report.financials['Bullions'].importedTotal, 150000);
 assert.strictEqual(report.financials['Real Estate'].status, 'MATCHED');
 assert.strictEqual(report.financials['Real Estate'].importedTotal, 2500000);
 
+assert.strictEqual(report.financials['Post Office'].status, 'MATCHED');
+assert.strictEqual(report.financials['Post Office'].importedTotal, 200000);
+
 assert.strictEqual(report.financials['Realized Funds'].status, 'MATCHED');
 assert.strictEqual(report.financials['Realized Funds'].importedTotal, 200000);
+
+assert.strictEqual(report.financials['Overall Net Worth'].status, 'MATCHED');
+assert.strictEqual(report.financials['Overall Net Worth'].importedTotal, 3150000);
 
 console.log('  [PASS] Migration executed with 100% row count and financial reconciliation match.\n');
 
@@ -286,6 +292,221 @@ console.log('[TEST 7] Verifying original files remained 100% untouched...');
 assert(fs.existsSync(path.join(synthDataDir, 'family_members.csv')));
 assert(fs.existsSync(path.join(synthUploadsDir, synthDocName)));
 console.log('  [PASS] Confirmed original source files were never deleted, modified, or moved.\n');
+
+// -----------------------------------------------------------------------------
+// Test 8: Partial Vault State & Existing Vault Preservation
+// -----------------------------------------------------------------------------
+console.log('[TEST 8] Testing partial vault state rejection & vault preservation...');
+
+// Case 8A: Orphan database without metadata
+const orphanDbPath = path.join(testRoot, 'orphan_vault.db');
+const nonExistentMetaPath = path.join(testRoot, 'non_existent_meta.json');
+fs.writeFileSync(orphanDbPath, 'DUMMY_ENCRYPTED_DB_DATA');
+
+let orphanDbRefused = false;
+try {
+  runMigration({
+    sourceDataDir: synthDataDir,
+    sourceUploadsDir: synthUploadsDir,
+    targetDbPath: orphanDbPath,
+    targetMetaPath: nonExistentMetaPath,
+    masterPassword: testPassword,
+    isDryRun: false
+  });
+} catch (err) {
+  if (err.message.includes('Existing database found') && err.message.includes('without metadata')) {
+    orphanDbRefused = true;
+  }
+}
+assert(orphanDbRefused, 'FAIL: Must refuse to initialize if DB exists without metadata!');
+assert(fs.existsSync(orphanDbPath), 'FAIL: Existing database file must NEVER be deleted automatically!');
+
+// Case 8B: Orphan metadata without database
+const nonExistentDbPath = path.join(testRoot, 'non_existent_vault.db');
+const orphanMetaPath = path.join(testRoot, 'orphan_meta.json');
+fs.writeFileSync(orphanMetaPath, JSON.stringify({ version: 1 }));
+
+let orphanMetaRefused = false;
+try {
+  runMigration({
+    sourceDataDir: synthDataDir,
+    sourceUploadsDir: synthUploadsDir,
+    targetDbPath: nonExistentDbPath,
+    targetMetaPath: orphanMetaPath,
+    masterPassword: testPassword,
+    isDryRun: false
+  });
+} catch (err) {
+  if (err.message.includes('Existing metadata found') && err.message.includes('without database')) {
+    orphanMetaRefused = true;
+  }
+}
+assert(orphanMetaRefused, 'FAIL: Must refuse to initialize if metadata exists without DB!');
+assert(fs.existsSync(orphanMetaPath), 'FAIL: Existing metadata file must NEVER be deleted automatically!');
+console.log('  [PASS] Partial vault state refused and existing vault artifacts preserved.\n');
+
+// -----------------------------------------------------------------------------
+// Test 9: Isolated Dry-Run Execution & Complete Artifact Cleanup
+// -----------------------------------------------------------------------------
+console.log('[TEST 9] Testing isolated dry-run execution & artifact cleanup...');
+const dryRunTargetDb = path.join(testRoot, 'never_created_real_vault.db');
+const dryRunTargetMeta = path.join(testRoot, 'never_created_real_meta.json');
+
+const dryReport = runMigration({
+  sourceDataDir: synthDataDir,
+  sourceUploadsDir: synthUploadsDir,
+  targetDbPath: dryRunTargetDb,
+  targetMetaPath: dryRunTargetMeta,
+  masterPassword: testPassword,
+  isDryRun: true
+});
+
+assert(dryReport.success, 'Dry run should report success');
+assert(dryReport.isDryRun, 'Report must indicate dry run mode');
+assert(!fs.existsSync(dryRunTargetDb), 'CRITICAL: Real target DB must NEVER be created or left on disk during dry-run!');
+assert(!fs.existsSync(dryRunTargetMeta), 'CRITICAL: Real target meta must NEVER be created or left on disk during dry-run!');
+console.log('  [PASS] Dry run executed in isolated temporary storage with zero real-vault artifacts created.\n');
+
+// -----------------------------------------------------------------------------
+// Test 10: Missing Attachments Detection & Fail-Closed Behavior
+// -----------------------------------------------------------------------------
+console.log('[TEST 10] Testing missing attachments fail-closed behavior & explicit override...');
+const missingAttachDataDir = path.join(testRoot, 'missing_attach_data');
+fs.mkdirSync(missingAttachDataDir, { recursive: true });
+for (const file of fs.readdirSync(synthDataDir)) {
+  fs.copyFileSync(path.join(synthDataDir, file), path.join(missingAttachDataDir, file));
+}
+// Add a reference to a document that does NOT exist in uploads
+fs.writeFileSync(path.join(missingAttachDataDir, 'documents.csv'), [
+  'd_id,a_id,r_id,d_category,d_name,d_link',
+  `doc_1,ast_prop_1,,COMMERCIAL,Property Deed,/uploads/${synthDocName}`,
+  'doc_missing,ast_fd_1,,FD,Missing Certificate,/uploads/non_existent_certificate.pdf'
+].join('\n') + '\n');
+
+// Case 10A: Default run without override -> MUST fail closed
+let missingAttachAborted = false;
+try {
+  runMigration({
+    sourceDataDir: missingAttachDataDir,
+    sourceUploadsDir: synthUploadsDir,
+    targetDbPath: path.join(testRoot, 'test_missing_fail.db'),
+    targetMetaPath: path.join(testRoot, 'test_missing_fail.json'),
+    masterPassword: testPassword,
+    isDryRun: true
+  });
+} catch (err) {
+  if (err.message.includes('referenced document(s) missing from upload storage')) {
+    missingAttachAborted = true;
+  }
+}
+assert(missingAttachAborted, 'FAIL: Migrator must fail closed when referenced attachments are missing!');
+
+// Case 10B: Run with explicit override allowMissingAttachments: true
+const overrideReport = runMigration({
+  sourceDataDir: missingAttachDataDir,
+  sourceUploadsDir: synthUploadsDir,
+  targetDbPath: path.join(testRoot, 'test_missing_override.db'),
+  targetMetaPath: path.join(testRoot, 'test_missing_override.json'),
+  masterPassword: testPassword,
+  isDryRun: true,
+  allowMissingAttachments: true
+});
+
+assert(overrideReport.success, 'Override run should complete');
+assert.strictEqual(overrideReport.totalDocumentsMissing, 1, 'Report must record 1 missing document');
+assert(overrideReport.missingDocumentFiles.includes('non_existent_certificate.pdf'), 'Must list missing file in report');
+console.log('  [PASS] Missing attachments failed closed by default and properly recorded with override.\n');
+
+// -----------------------------------------------------------------------------
+// Test 11: Unreferenced Upload Files Detection
+// -----------------------------------------------------------------------------
+console.log('[TEST 11] Testing unreferenced upload files detection...');
+const extraUploadFile = 'extra_orphan_file_not_in_csv.png';
+fs.writeFileSync(path.join(synthUploadsDir, extraUploadFile), 'ORPHAN_IMAGE_CONTENT');
+
+const unrefReport = runMigration({
+  sourceDataDir: synthDataDir,
+  sourceUploadsDir: synthUploadsDir,
+  targetDbPath: path.join(testRoot, 'test_unreferenced.db'),
+  targetMetaPath: path.join(testRoot, 'test_unreferenced.json'),
+  masterPassword: testPassword,
+  isDryRun: true
+});
+
+assert(unrefReport.unreferencedUploadFiles.includes(extraUploadFile), 'Report must identify unreferenced upload file');
+assert(fs.existsSync(path.join(synthUploadsDir, extraUploadFile)), 'Original upload file must be preserved');
+console.log('  [PASS] Unreferenced upload file captured in report without altering source storage.\n');
+
+// -----------------------------------------------------------------------------
+// Test 12: Comprehensive Post Office Rules & Net Worth Reconciliation
+// -----------------------------------------------------------------------------
+console.log('[TEST 12] Testing Post Office calculation rules (RD installments, TD, SCSS, matured status)...');
+const poTestDir = path.join(testRoot, 'po_test_data');
+fs.mkdirSync(poTestDir, { recursive: true });
+for (const file of fs.readdirSync(synthDataDir)) {
+  fs.copyFileSync(path.join(synthDataDir, file), path.join(poTestDir, file));
+}
+
+// Setup assets: 1 active RD, 1 active TD, 1 active SCSS, 1 matured TD
+fs.writeFileSync(path.join(poTestDir, 'assets.csv'), [
+  'a_id,member_id,asset_type,asset_name,asset_status',
+  'ast_po_rd,mem_synth_1,POST_OFFICE,Post Office RD,ACTIVE',
+  'ast_po_td,mem_synth_1,POST_OFFICE,Post Office TD,ACTIVE',
+  'ast_po_scss,mem_synth_2,POST_OFFICE,Senior Citizen Scheme,ACTIVE',
+  'ast_po_matured,mem_synth_1,POST_OFFICE,Old Matured TD,ACTIVE'
+].join('\n') + '\n');
+
+// Post Office accounts
+fs.writeFileSync(path.join(poTestDir, 'post_office.csv'), [
+  'po_id,a_id,scheme_name,account_number,principal,interest_rate,start_date,maturity_date,actual_end_date,scheme_status',
+  'po_rd_1,ast_po_rd,Recurring Deposit (RD),RD-1001,,6.7,2026-01-01,2031-01-01,,ACTIVE',
+  'po_td_1,ast_po_td,Post Office Time Deposit (TD),TD-2002,50000,7.5,2026-01-01,2031-01-01,,ACTIVE',
+  'po_scss_1,ast_po_scss,Senior Citizens Savings Scheme (SCSS),SCSS-3003,100000,8.2,2026-01-01,2031-01-01,,ACTIVE',
+  'po_mat_1,ast_po_matured,Post Office Time Deposit (TD),TD-9999,75000,7.5,2021-01-01,2026-01-01,2026-01-01,MATURED'
+].join('\n') + '\n');
+
+// Contributions for RD: 3 PAID installments (₹5,000 each = ₹15,000), 2 PENDING (₹5,000 each = not yet paid)
+fs.writeFileSync(path.join(poTestDir, 'contributions.csv'), [
+  'contribution_id,a_id,contribution_type,amount,frequency,due_date,payment_date,status,notes',
+  'cnt_rd_1,ast_po_rd,RD_DEPOSIT,5000,MONTHLY,2026-01-01,2026-01-01,PAID,Inst 1',
+  'cnt_rd_2,ast_po_rd,RD_DEPOSIT,5000,MONTHLY,2026-02-01,2026-02-01,PAID,Inst 2',
+  'cnt_rd_3,ast_po_rd,RD_DEPOSIT,5000,MONTHLY,2026-03-01,2026-03-01,PAID,Inst 3',
+  'cnt_rd_4,ast_po_rd,RD_DEPOSIT,5000,MONTHLY,2026-04-01,,PENDING,Inst 4',
+  'cnt_rd_5,ast_po_rd,RD_DEPOSIT,5000,MONTHLY,2026-05-01,,PENDING,Inst 5'
+].join('\n') + '\n');
+
+// Empty FDs, bullions, properties, but 1 payment for realized maturity
+fs.writeFileSync(path.join(poTestDir, 'fds.csv'), 'fd_id,a_id,bank_name,acc_number,principal,interest_rate,start_date,maturity_date,actual_end_date\n');
+fs.writeFileSync(path.join(poTestDir, 'bullions.csv'), 'b_id,a_id,b_type,purchase_value,purchase_date,b_status,payment_due_date,weight,weight_unit,purchase_rate,weight_display\n');
+fs.writeFileSync(path.join(poTestDir, 'properties.csv'), 'p_id,a_id,p_type,name,location,area_sqft,area_unit,purchase_price,party_name,party_contact,purchase_date,p_notes,payment_deadline\n');
+fs.writeFileSync(path.join(poTestDir, 'rents.csv'), 'r_id,p_id,tenant_name,tenant_contact,rent_amount,rent_start_date,rent_end_date,next_rent_due,r_notes\n');
+fs.writeFileSync(path.join(poTestDir, 'asset_sales.csv'), 'sale_id,a_id,buyer_name,buyer_contact,sale_price,sale_date,payment_due_date,sale_notes\n');
+fs.writeFileSync(path.join(poTestDir, 'documents.csv'), 'd_id,a_id,r_id,d_category,d_name,d_link\n');
+fs.writeFileSync(path.join(poTestDir, 'payments.csv'), [
+  'payment_id,a_id,payment_type,payment_context,amount,payment_date,due_date,status,notes',
+  'pay_mat_1,ast_po_matured,RECEIVED,MATURITY,80000,2026-01-01,,PAID,Maturity payout received'
+].join('\n') + '\n');
+
+// Expected:
+// Active Post Office = ₹15,000 (RD paid) + ₹50,000 (TD) + ₹100,000 (SCSS) = ₹1,65,000.
+// Realized Funds = ₹80,000.
+// Overall Net Worth = ₹1,65,000 + ₹80,000 = ₹2,45,000.
+const poReport = runMigration({
+  sourceDataDir: poTestDir,
+  sourceUploadsDir: synthUploadsDir,
+  targetDbPath: path.join(testRoot, 'po_vault.db'),
+  targetMetaPath: path.join(testRoot, 'po_vault.json'),
+  masterPassword: testPassword,
+  isDryRun: true
+});
+
+assert.strictEqual(poReport.financials['Post Office'].status, 'MATCHED');
+assert.strictEqual(poReport.financials['Post Office'].importedTotal, 165000);
+assert.strictEqual(poReport.financials['Realized Funds'].status, 'MATCHED');
+assert.strictEqual(poReport.financials['Realized Funds'].importedTotal, 80000);
+assert.strictEqual(poReport.financials['Overall Net Worth'].status, 'MATCHED');
+assert.strictEqual(poReport.financials['Overall Net Worth'].importedTotal, 245000);
+console.log('  [PASS] Post Office calculation rules and overall net worth reconciliation verified with 100% precision.\n');
 
 // Clean up synthetic test directory (with retries for Windows file locking)
 try {

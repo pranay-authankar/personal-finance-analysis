@@ -12,6 +12,7 @@ import { runMigration } from '../server/migration/migrator.ts';
  */
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
+  const allowMissingAttachments = process.argv.includes('--allow-missing-attachments');
   const masterPassword = process.env.VAULT_PASSWORD || '';
 
   console.log('================================================================');
@@ -34,7 +35,8 @@ async function main() {
   console.log(`Source Uploads Dir : ${sourceUploadsDir}`);
   console.log(`Target Database    : ${targetDbPath}`);
   console.log(`Target Metadata    : ${targetMetaPath}`);
-  console.log(`Mode               : ${isDryRun ? 'Dry Run (Validation & Rollback)' : 'Full Transactional Migration'}\n`);
+  console.log(`Mode               : ${isDryRun ? 'Dry Run (Validation & Rollback)' : 'Full Transactional Migration'}`);
+  console.log(`Missing Att. Mode  : ${allowMissingAttachments ? 'OVERRIDE ALLOWED' : 'FAIL CLOSED (STRICT)'}\n`);
 
   // Step 1: Pre-flight Backup & SHA-256 Manifest
   console.log('--- Step 1: Creating Pre-Flight Backup with SHA-256 Manifest ---');
@@ -57,7 +59,8 @@ async function main() {
       targetDbPath,
       targetMetaPath,
       masterPassword,
-      isDryRun
+      isDryRun,
+      allowMissingAttachments
     });
 
     console.log('\n--- Migration Audit Results ---');
@@ -67,6 +70,20 @@ async function main() {
     console.log(`Docs Checked  : ${report.totalDocumentsChecked}`);
     console.log(`Docs Missing  : ${report.totalDocumentsMissing}`);
 
+    if (report.missingDocumentFiles.length > 0) {
+      console.log('Missing Document Files:');
+      for (const f of report.missingDocumentFiles) {
+        console.log(`  ⚠️  ${f}`);
+      }
+    }
+
+    if (report.unreferencedUploadFiles.length > 0) {
+      console.log(`\nUnreferenced Upload Files (${report.unreferencedUploadFiles.length}):`);
+      for (const f of report.unreferencedUploadFiles) {
+        console.log(`  ℹ️  ${f}`);
+      }
+    }
+
     console.log('\nTable Reconciliation:');
     for (const [tbl, metric] of Object.entries(report.tables)) {
       console.log(`  - ${tbl.padEnd(16)} : Source=${metric.sourceRows}, Imported=${metric.importedRows} [${metric.status}]`);
@@ -74,7 +91,7 @@ async function main() {
 
     console.log('\nFinancial Totals Reconciliation:');
     for (const [cat, metric] of Object.entries(report.financials)) {
-      console.log(`  - ${cat.padEnd(16)} : Source=₹${metric.sourceTotal.toLocaleString('en-IN')}, Imported=₹${metric.importedTotal.toLocaleString('en-IN')} [${metric.status}]`);
+      console.log(`  - ${cat.padEnd(18)} : Source=₹${metric.sourceTotal.toLocaleString('en-IN')}, Imported=₹${metric.importedTotal.toLocaleString('en-IN')} [${metric.status}]`);
     }
 
     console.log('\n================================================================');
