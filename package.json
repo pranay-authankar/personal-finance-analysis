@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs"
+    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.51.0",

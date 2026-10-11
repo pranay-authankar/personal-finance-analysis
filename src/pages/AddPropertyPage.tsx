@@ -88,6 +88,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
   const [docFileName, setDocFileName] = useState('');
   const [docFileUrl, setDocFileUrl] = useState('');
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Load existing property when editing
   useEffect(() => {
@@ -167,7 +168,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
     setDocuments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const trimmedName = name.trim();
@@ -205,54 +206,67 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
       }
     }
 
-    if (editId) {
-      updateProperty(editId, {
-        p_type: pType,
-        name: trimmedName,
-        location: trimmedLocation,
-        area_sqft: areaValue.trim() !== '' ? areaValue.trim() : undefined,
-        area_unit: areaValue.trim() !== '' ? areaUnit : undefined,
-        purchase_price: numPrice,
-        party_name: partyName.trim(),
-        party_contact: partyContact.trim(),
-        purchase_date: purchaseDate || undefined,
-        p_notes: notes.trim(),
-        payment_deadline: paymentDeadline || undefined
-      });
-      onShowToast(`Property "${trimmedName}" updated!`, 'success');
-      navigate(`/real-estate/${editId}`);
-    } else {
-      const created = addProperty(
-        {
-          p_type: pType,
-          name: trimmedName,
-          location: trimmedLocation,
-          area_sqft: areaValue.trim() !== '' ? areaValue.trim() : undefined,
-          area_unit: areaValue.trim() !== '' ? areaUnit : undefined,
-          purchase_price: numPrice,
-          party_name: partyName.trim(),
-          party_contact: partyContact.trim(),
-          purchase_date: purchaseDate || getLocalDateString(),
-          p_notes: notes.trim(),
-          initial_payment: numInitial > 0 ? numInitial : undefined,
-          payment_deadline: paymentDeadline || undefined
-        },
-        finalDocs.length > 0 ? finalDocs : undefined
-      );
+    setIsSubmitting(true);
+    try {
+      if (editId) {
+        await updateProperty(
+          editId,
+          {
+            p_type: pType,
+            name: trimmedName,
+            location: trimmedLocation,
+            area_sqft: areaValue.trim(),
+            area_unit: areaValue.trim() !== '' ? areaUnit : '',
+            purchase_price: numPrice,
+            party_name: partyName.trim(),
+            party_contact: partyContact.trim(),
+            purchase_date: purchaseDate,
+            p_notes: notes.trim(),
+            payment_deadline: paymentDeadline
+          },
+          finalDocs.length > 0 ? finalDocs : undefined
+        );
+        onShowToast(`Property "${trimmedName}" updated!`, 'success');
+        navigate(`/real-estate/${editId}`);
+      } else {
+        const created = addProperty(
+          {
+            p_type: pType,
+            name: trimmedName,
+            location: trimmedLocation,
+            area_sqft: areaValue.trim() !== '' ? areaValue.trim() : undefined,
+            area_unit: areaValue.trim() !== '' ? areaUnit : undefined,
+            purchase_price: numPrice,
+            party_name: partyName.trim(),
+            party_contact: partyContact.trim(),
+            purchase_date: purchaseDate || getLocalDateString(),
+            p_notes: notes.trim(),
+            initial_payment: numInitial > 0 ? numInitial : undefined,
+            payment_deadline: paymentDeadline || undefined
+          },
+          finalDocs.length > 0 ? finalDocs : undefined
+        );
 
-      if (isRented && tenantName.trim() && Number(rentAmount) > 0) {
-        startRent(created.p_id, {
-          tenant_name: tenantName.trim(),
-          tenant_contact: tenantContact.trim(),
-          rent_amount: Number(rentAmount),
-          rent_start_date: rentStartDate || purchaseDate || getLocalDateString(),
-          next_rent_due: nextRentDue || purchaseDate || getLocalDateString(),
-          r_notes: rentNotes.trim()
-        });
+        if (isRented && tenantName.trim() && Number(rentAmount) > 0) {
+          startRent(created.p_id, {
+            tenant_name: tenantName.trim(),
+            tenant_contact: tenantContact.trim(),
+            rent_amount: Number(rentAmount),
+            rent_start_date: rentStartDate || purchaseDate || getLocalDateString(),
+            next_rent_due: nextRentDue || purchaseDate || getLocalDateString(),
+            r_notes: rentNotes.trim()
+          });
+        }
+
+        onShowToast(`Property "${trimmedName}" added to portfolio!`, 'success');
+        navigate(`/real-estate/${created.p_id}`);
       }
-
-      onShowToast(`Property "${trimmedName}" added to portfolio!`, 'success');
-      navigate(`/real-estate/${created.p_id}`);
+    } catch (err: any) {
+      console.error('Failed to save property:', err);
+      onShowToast(err?.message || 'Failed to save property details.', 'warn');
+      // Do NOT navigate away on error, retaining the user's unsaved form input!
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -846,9 +860,10 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
             <button
               type="submit"
               className="btn btn-primary"
+              disabled={isSubmitting || isUploadingDoc}
               style={{ background: 'var(--color-navy)', minWidth: '150px' }}
             >
-              {editId ? 'Save Changes' : 'Save Property'}
+              {isSubmitting ? 'Saving...' : editId ? 'Save Changes' : 'Save Property'}
             </button>
           </div>
         </form>

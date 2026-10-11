@@ -17,7 +17,7 @@ import type {
   DocumentRecord,
   ContributionRecord
 } from '../types';
-import { getLocalDateString, isDateOverdue, parseLocalDate } from '../utils/dateUtils';
+import { getLocalDateString, isDateOverdue, parseLocalDate } from '../utils/dateUtils.ts';
 
 export type {
   FamilyMemberRecord,
@@ -766,9 +766,15 @@ export class CsvDatabaseService {
     );
 
     const isSold = asset?.asset_status === 'SOLD';
-    let nextDueDate = pendingPayments[0]?.due_date;
-    if (isSold && !nextDueDate && sale?.payment_due_date && saleReceivableLeft > 0) {
-      nextDueDate = sale.payment_due_date;
+    let nextDueDate: string | undefined = undefined;
+    if (isSold) {
+      if (saleReceivableLeft > 0) {
+        nextDueDate = pendingPayments[0]?.due_date || sale?.payment_due_date;
+      }
+    } else {
+      if (paymentLeft > 0) {
+        nextDueDate = prop?.payment_deadline || pendingPayments[0]?.due_date;
+      }
     }
 
     const isOverdue = nextDueDate ? isDateOverdue(nextDueDate, referenceDate) : false;

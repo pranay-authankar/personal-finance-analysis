@@ -103,7 +103,11 @@ interface InvestmentContextType {
     documents?: { d_name: string; d_link: string }[]
   ) => PropertyRecord;
 
-  updateProperty: (p_id: string, data: Partial<PropertyRecord>) => void;
+  updateProperty: (
+    p_id: string,
+    data: Partial<PropertyRecord>,
+    documents?: { d_name: string; d_link: string }[]
+  ) => Promise<PropertyRecord>;
   deleteProperty: (p_id: string) => void;
   getPropertyById: (p_id: string) => PropertyRecord | undefined;
 
@@ -510,12 +514,12 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const prop = csvDb.properties.find((p) => p.a_id === a.a_id);
           if (prop) {
             const propPending = csvDb.payments.find(
-              (p) => p.a_id === a.a_id && p.payment_type === 'PURCHASE' && p.due_date
+              (p) => (p.a_id === a.a_id || p.p_id === prop.p_id) && p.payment_type === 'PURCHASE' && p.due_date && (p.status === 'PENDING' || p.status === 'OVERDUE')
             );
             memberProps.push({
               ...prop,
               property_status: (a.asset_status as 'ACTIVE' | 'SOLD' | 'DELETED') || 'ACTIVE',
-              payment_deadline: prop.payment_deadline || propPending?.due_date || ''
+              payment_deadline: prop.payment_deadline !== undefined ? prop.payment_deadline : (propPending?.due_date || '')
             });
           }
         }
@@ -1273,13 +1277,108 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return newProp;
   };
 
-  const updateProperty = (p_id: string, data: Partial<PropertyRecord>) => {
-    csvDb.updateProperty(p_id, data);
-    const prop = csvDb.properties.find((p) => p.p_id === p_id);
-    if (prop && data.name) {
-      csvDb.updateAsset(prop.a_id, { asset_name: data.name });
+  const updateProperty = async (
+    p_id: string,
+    data: Partial<PropertyRecord>,
+    documents?: { d_name: string; d_link: string }[]
+  ): Promise<PropertyRecord> => {
+    const existing = csvDb.properties.find((p) => p.p_id === p_id);
+    if (!existing) {
+      throw new Error(`Property record with ID ${p_id} not found.`);
     }
+
+    const a_id = existing.a_id;
+
+    // 1. Construct the updated property record cleanly preserving p_id and linked a_id
+    const updatedProp: PropertyRecord = {
+      p_id: existing.p_id,
+      a_id: existing.a_id,
+      p_type: data.p_type !== undefined ? data.p_type : existing.p_type,
+      name: data.name !== undefined ? data.name.trim() : existing.name,
+      location: data.location !== undefined ? data.location.trim() : existing.location,
+      area_sqft: data.area_sqft !== undefined ? String(data.area_sqft).trim() : (existing.area_sqft ?? ''),
+      area_unit: data.area_unit !== undefined ? String(data.area_unit).trim() : (existing.area_unit ?? ''),
+      purchase_price: data.purchase_price !== undefined ? Number(data.purchase_price) || 0 : existing.purchase_price,
+      party_name: data.party_name !== undefined ? data.party_name.trim() : existing.party_name,
+      party_contact: data.party_contact !== undefined ? data.party_contact.trim() : existing.party_contact,
+      purchase_date: data.purchase_date !== undefined ? data.purchase_date : existing.purchase_date,
+      p_notes: data.p_notes !== undefined ? data.p_notes.trim() : existing.p_notes,
+      property_status: existing.property_status || 'ACTIVE',
+      payment_deadline: data.payment_deadline !== undefined ? data.payment_deadline : (existing.payment_deadline || '')
+    };
+
+    // 2. Persist updated property to properties.csv
+    await csvDb.updateProperty(p_id, updatedProp);
+
+    // 3. Update linked asset in assets.csv if asset name changed
+    if (updatedProp.name) {
+      await csvDb.updateAsset(a_id, {
+        asset_name: updatedProp.name
+      });
+    }
+
+    // 4. Synchronize pending balance payment in payments.csv
+    const purchasePayments = csvDb.payments.filter(
+      (p) =>
+        (p.a_id === a_id || p.p_id === p_id) &&
+        p.payment_type === 'PURCHASE' &&
+        (p.status === 'PAID' || p.status === 'RECEIVED')
+    );
+    const totalPurchasePaid = purchasePayments.reduce(
+      (sum, p) => sum + (Number(p.amount) || 0),
+      0
+    );
+    const remainingBalance = Math.max(0, updatedProp.purchase_price - totalPurchasePaid);
+
+    const pendingPayment = csvDb.payments.find(
+      (p) =>
+        (p.a_id === a_id || p.p_id === p_id) &&
+        p.payment_type === 'PURCHASE' &&
+        (p.status === 'PENDING' || p.status === 'OVERDUE')
+    );
+
+    if (pendingPayment) {
+      if (remainingBalance > 0) {
+        await csvDb.updatePayment(pendingPayment.payment_id, {
+          amount: remainingBalance,
+          due_date: updatedProp.payment_deadline || '',
+          p_id: updatedProp.p_id
+        });
+      } else {
+        await csvDb.deletePayment(pendingPayment.payment_id);
+      }
+    } else if (updatedProp.payment_deadline && remainingBalance > 0) {
+      await csvDb.addPayment({
+        payment_id: `pay_${Date.now()}_bal`,
+        a_id,
+        payment_type: 'PURCHASE',
+        payment_context: 'PURCHASE',
+        amount: remainingBalance,
+        payment_date: '',
+        due_date: updatedProp.payment_deadline,
+        status: 'PENDING',
+        notes: 'Balance Purchase Payment Due',
+        p_id: updatedProp.p_id
+      });
+    }
+
+    // 5. Attach any newly uploaded documents
+    if (documents && documents.length > 0) {
+      const newDocs: DocumentRecord[] = documents.map((doc, idx) => ({
+        d_id: `doc_${Date.now()}_${idx}`,
+        a_id,
+        r_id: '',
+        d_category: updatedProp.p_type,
+        d_name: doc.d_name.trim(),
+        d_link: doc.d_link || '',
+        p_id
+      }));
+      await csvDb.addDocuments(newDocs);
+    }
+
+    // 6. Force immediate state refresh across all consumers
     bumpRevision();
+    return updatedProp;
   };
 
   const deleteProperty = (p_id: string) => {
@@ -1292,12 +1391,12 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!p) return undefined;
     const asset = csvDb.assets.find((a) => a.a_id === p.a_id);
     const propPending = csvDb.payments.find(
-      (pay) => pay.a_id === p.a_id && pay.payment_type === 'PURCHASE' && pay.due_date
+      (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE')
     );
     return {
       ...p,
       property_status: (asset?.asset_status as any) || 'ACTIVE',
-      payment_deadline: p.payment_deadline || propPending?.due_date || ''
+      payment_deadline: p.payment_deadline !== undefined ? p.payment_deadline : (propPending?.due_date || '')
     };
   };
 
@@ -1874,12 +1973,12 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const asset = csvDb.assets.find((a) => a.a_id === p.a_id);
       const status: PropertyStatus = (asset?.asset_status as PropertyStatus) || 'ACTIVE';
       const propPending = csvDb.payments.find(
-        (pay) => pay.a_id === p.a_id && pay.payment_type === 'PURCHASE' && pay.due_date
+        (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE')
       );
       return {
         ...p,
         property_status: status,
-        payment_deadline: p.payment_deadline || propPending?.due_date || ''
+        payment_deadline: p.payment_deadline !== undefined ? p.payment_deadline : (propPending?.due_date || '')
       };
     });
   }, [dataRevision]);
