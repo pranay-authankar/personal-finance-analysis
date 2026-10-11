@@ -26,6 +26,7 @@ legacy_static/
 
 # Database and Vault Local Files
 temp_test_vault/
+temp_phase3_test_suite/
 *.db
 *.db-wal
 *.db-shm
