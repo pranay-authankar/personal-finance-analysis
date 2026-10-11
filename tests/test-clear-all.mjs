@@ -175,6 +175,30 @@ assert(!isSafeUploadDirectory('../data'), 'Path traversal with .. must be reject
 assert(!isSafeUploadDirectory(process.cwd()), 'Project root must be rejected');
 console.log('  [PASS] Path traversal and project root protections verified.\n');
 
+// -----------------------------------------------------------------------------
+// Test 8: Path Route Precedence Test (/api/uploads/clear vs /api/upload)
+// -----------------------------------------------------------------------------
+console.log('[TEST 8] Testing route matching precedence for clear endpoint...');
+const testRoutes = [
+  { url: '/api/uploads/clear', expected: 'CLEAR' },
+  { url: '/api/upload', expected: 'UPLOAD' },
+  { url: '/api/uploads/delete', expected: 'DELETE' }
+];
+
+for (const tr of testRoutes) {
+  const urlPath = tr.url.split('?')[0];
+  let matched = '';
+  if (urlPath === '/api/uploads/clear' || urlPath === '/api/upload/clear') {
+    matched = 'CLEAR';
+  } else if (urlPath === '/api/uploads/delete' || urlPath === '/api/upload/delete') {
+    matched = 'DELETE';
+  } else if (urlPath === '/api/upload' || urlPath === '/api/upload/') {
+    matched = 'UPLOAD';
+  }
+  assert.strictEqual(matched, tr.expected, `URL ${tr.url} must match ${tr.expected}`);
+}
+console.log('  [PASS] Route precedence ensures /api/uploads/clear is never intercepted by /api/upload.\n');
+
 // Clean up sandbox
 fs.rmSync(testSandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 

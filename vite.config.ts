@@ -36,8 +36,33 @@ function csvStoragePlugin(): Plugin {
           }
         }
 
-        // 2. Upload file endpoint (/api/upload)
-        if (req.url && req.url.startsWith('/api/upload') && req.method === 'POST') {
+        const urlPath = req.url ? req.url.split('?')[0] : '';
+
+        // 2a. Clear managed upload files endpoint (/api/uploads/clear or /api/upload/clear)
+        if (
+          (urlPath === '/api/uploads/clear' ||
+            urlPath === '/api/uploads/clear/' ||
+            urlPath === '/api/upload/clear' ||
+            urlPath === '/api/upload/clear/') &&
+          req.method === 'POST'
+        ) {
+          if (!isLoopbackRequest(req) || !isValidOriginAndHost(req)) {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Forbidden: Loopback and verified origin required' }));
+            return;
+          }
+
+          const uploadsDir = path.resolve(process.cwd(), 'uploads');
+          const clearResult = clearManagedUploads(uploadsDir, process.cwd());
+          res.statusCode = clearResult.success ? 200 : 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(clearResult));
+          return;
+        }
+
+        // 2b. Upload file endpoint (/api/upload)
+        if ((urlPath === '/api/upload' || urlPath === '/api/upload/') && req.method === 'POST') {
           let body = '';
           req.on('data', (chunk) => {
             body += chunk;
@@ -71,8 +96,14 @@ function csvStoragePlugin(): Plugin {
           return;
         }
 
-        // 2b. Clear managed upload files endpoint (/api/uploads/clear)
-        if (req.url && req.url.startsWith('/api/uploads/clear') && req.method === 'POST') {
+        // 2c. Delete specific managed upload file endpoint (/api/uploads/delete)
+        if (
+          (urlPath === '/api/uploads/delete' ||
+            urlPath === '/api/uploads/delete/' ||
+            urlPath === '/api/upload/delete' ||
+            urlPath === '/api/upload/delete/') &&
+          req.method === 'POST'
+        ) {
           if (!isLoopbackRequest(req) || !isValidOriginAndHost(req)) {
             res.statusCode = 403;
             res.setHeader('Content-Type', 'application/json');
@@ -80,11 +111,43 @@ function csvStoragePlugin(): Plugin {
             return;
           }
 
-          const uploadsDir = path.resolve(process.cwd(), 'uploads');
-          const clearResult = clearManagedUploads(uploadsDir, process.cwd());
-          res.statusCode = clearResult.success ? 200 : 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(clearResult));
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk;
+          });
+          req.on('end', () => {
+            try {
+              const parsed = JSON.parse(body || '{}');
+              const fileUrl = typeof parsed.fileUrl === 'string' ? parsed.fileUrl : '';
+              if (!fileUrl) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'Missing fileUrl' }));
+                return;
+              }
+              const relativePath = fileUrl.replace(/^\/?uploads\//, '').replace(/^[\\/]/, '');
+              const uploadsDir = path.resolve(process.cwd(), 'uploads');
+              const targetPath = path.resolve(uploadsDir, relativePath);
+
+              // Guard: Ensure targetPath is strictly inside uploadsDir and exists
+              if (
+                targetPath.startsWith(uploadsDir + path.sep) &&
+                fs.existsSync(targetPath) &&
+                fs.statSync(targetPath).isFile()
+              ) {
+                fs.unlinkSync(targetPath);
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: true, deleted: relativePath }));
+                return;
+              }
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, message: 'File not found or already deleted' }));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Failed to delete upload file' }));
+            }
+          });
           return;
         }
 

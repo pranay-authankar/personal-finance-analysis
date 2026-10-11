@@ -603,8 +603,11 @@ export class CsvDatabaseService {
     await this.addRent(newRent);
 
     if (documents && documents.length > 0) {
+      const prop = this.properties.find((p) => p.p_id === p_id);
+      const a_id = prop?.a_id || `ast_${p_id}`;
       const newDocs: DocumentRecord[] = documents.map((doc, idx) => ({
         d_id: `doc_${Date.now()}_${idx}`,
+        a_id,
         p_id,
         r_id,
         d_name: doc.d_name,
@@ -730,6 +733,18 @@ export class CsvDatabaseService {
   }
 
   public async deleteDocument(d_id: string): Promise<void> {
+    const doc = this.documents.find((d) => d.d_id === d_id);
+    if (doc?.d_link && doc.d_link.startsWith('/uploads/')) {
+      try {
+        await fetch('/api/uploads/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fileUrl: doc.d_link })
+        });
+      } catch (err) {
+        console.warn('Notice: Failed to delete physical file for document:', err);
+      }
+    }
     this.documents = this.documents.filter((d) => d.d_id !== d_id);
     await this.persistTable('documents', this.documents, DOCUMENTS_COLUMNS);
   }
