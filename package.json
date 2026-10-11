@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-phase3-migration.mjs && node --experimental-strip-types tests/test-clear-all.mjs"
+    "test": "node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-phase3-migration.mjs && node --experimental-strip-types tests/test-clear-all.mjs",
+    "migrate": "node --experimental-strip-types scripts/migrate.ts"
   },
   "dependencies": {
     "better-sqlite3-multiple-ciphers": "^13.0.3",

@@ -1,27 +1,79 @@
 import path from 'node:path';
+import readline from 'node:readline';
 import { getVaultDbPath, getVaultMetaPath } from '../server/config.ts';
 import { createPreFlightBackup } from '../server/migration/backup.ts';
 import { runMigration } from '../server/migration/migrator.ts';
 
 /**
+ * Prompts the user interactively for a password with masked terminal input (asterisks).
+ * Falls back to standard readline if stdin is not a TTY.
+ */
+async function promptPassword(promptText: string): Promise<string> {
+  return new Promise((resolve) => {
+    const stdin = process.stdin;
+    const stdout = process.stdout;
+
+    if (stdin.isTTY) {
+      stdout.write(promptText);
+      let password = '';
+      const onData = (buffer: Buffer) => {
+        const str = buffer.toString('utf8');
+        for (const char of str) {
+          if (char === '\n' || char === '\r' || char === '\u0004') {
+            stdin.removeListener('data', onData);
+            if (stdin.setRawMode) stdin.setRawMode(false);
+            stdin.pause();
+            stdout.write('\n');
+            resolve(password);
+            return;
+          } else if (char === '\u0008' || char === '\x7f') {
+            if (password.length > 0) {
+              password = password.slice(0, -1);
+              stdout.write('\b \b');
+            }
+          } else if (char === '\u0003') {
+            process.exit(1);
+          } else {
+            password += char;
+            stdout.write('*');
+          }
+        }
+      };
+      if (stdin.setRawMode) stdin.setRawMode(true);
+      stdin.resume();
+      stdin.on('data', onData);
+    } else {
+      const rl = readline.createInterface({ input: stdin, output: stdout });
+      rl.question(promptText, (answer) => {
+        rl.close();
+        resolve(answer.trim());
+      });
+    }
+  });
+}
+
+/**
  * FamilyVault Phase 3 Migration CLI Runner
  * Usage:
- *   node --experimental-strip-types scripts/migrate.ts [--dry-run]
+ *   node --experimental-strip-types scripts/migrate.ts [--dry-run] [--allow-missing-attachments]
  *
- * Password should be provided via VAULT_PASSWORD environment variable.
+ * Password can be entered interactively (secure masked prompt) or via VAULT_PASSWORD env variable.
  */
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
   const allowMissingAttachments = process.argv.includes('--allow-missing-attachments');
-  const masterPassword = process.env.VAULT_PASSWORD || '';
+  let masterPassword = process.env.VAULT_PASSWORD || '';
 
   console.log('================================================================');
   console.log(`  FamilyVault Data Migration — Phase 3 Runner ${isDryRun ? '(DRY RUN)' : ''}  `);
   console.log('================================================================\n');
 
+  if (!masterPassword) {
+    masterPassword = await promptPassword('Enter FamilyVault Master Password: ');
+  }
+
   if (!masterPassword || masterPassword.length < 8) {
-    console.error('ERROR: Master password must be provided via VAULT_PASSWORD env variable and be >= 8 characters.');
-    console.error('Example: $env:VAULT_PASSWORD="YourStrongPassword123!"; node --experimental-strip-types scripts/migrate.ts --dry-run');
+    console.error('ERROR: Master password must be >= 8 characters.');
     process.exit(1);
   }
 
