@@ -471,6 +471,22 @@ export class CsvDatabaseService {
       this.persistTable('documents', [], DOCUMENTS_COLUMNS),
       this.persistTable('contributions', [], CONTRIBUTIONS_COLUMNS)
     ]);
+
+    // Clear physical files in managed uploads directory
+    try {
+      const res = await fetch('/api/uploads/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete managed uploaded files');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Failed to clear uploaded documents:', msg);
+      throw new Error(`Data records cleared, but failed to delete uploaded document files: ${msg}`);
+    }
   }
 
   // ============================================================================

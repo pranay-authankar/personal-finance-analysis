@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { vaultManager } from './auth.ts';
+import { getVaultAttachmentsDir } from './config.ts';
+import { clearManagedUploads } from './storage/clearManager.ts';
 
 /**
  * Checks if request comes strictly from local loopback (127.0.0.1 or ::1).
@@ -208,6 +210,39 @@ export async function handleVaultApi(
 
       const totalChanges = runBatch(statements);
       sendJson(res, 200, { success: true, totalChanges });
+      return;
+    }
+
+    // Authenticated Vault Clear Endpoint
+    if (endpoint === 'clear' && req.method === 'POST') {
+      const clearVaultTables = db.transaction(() => {
+        const tables = [
+          'contributions',
+          'documents',
+          'payments',
+          'asset_sales',
+          'rents',
+          'properties',
+          'bullions',
+          'post_office',
+          'fds',
+          'assets',
+          'family_members'
+        ];
+        for (const t of tables) {
+          db.prepare(`DELETE FROM ${t};`).run();
+        }
+      });
+      clearVaultTables();
+
+      const attachmentsDir = getVaultAttachmentsDir();
+      const attachmentClearResult = clearManagedUploads(attachmentsDir);
+
+      sendJson(res, 200, {
+        success: true,
+        vaultCleared: true,
+        attachmentsCleared: attachmentClearResult
+      });
       return;
     }
 

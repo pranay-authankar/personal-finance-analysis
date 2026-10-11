@@ -2,7 +2,8 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleVaultApi } from './server/api.ts';
+import { handleVaultApi, isLoopbackRequest, isValidOriginAndHost } from './server/api.ts';
+import { clearManagedUploads } from './server/storage/clearManager.ts';
 
 function csvStoragePlugin(): Plugin {
   return {
@@ -67,6 +68,23 @@ function csvStoragePlugin(): Plugin {
               res.end(JSON.stringify({ error: 'Failed to upload document file' }));
             }
           });
+          return;
+        }
+
+        // 2b. Clear managed upload files endpoint (/api/uploads/clear)
+        if (req.url && req.url.startsWith('/api/uploads/clear') && req.method === 'POST') {
+          if (!isLoopbackRequest(req) || !isValidOriginAndHost(req)) {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Forbidden: Loopback and verified origin required' }));
+            return;
+          }
+
+          const uploadsDir = path.resolve(process.cwd(), 'uploads');
+          const clearResult = clearManagedUploads(uploadsDir, process.cwd());
+          res.statusCode = clearResult.success ? 200 : 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(clearResult));
           return;
         }
 

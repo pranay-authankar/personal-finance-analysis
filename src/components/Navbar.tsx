@@ -32,12 +32,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
 
   const handleClearAll = async () => {
     const confirmed = window.confirm(
-      '⚠️ PERMANENT ACTION: Clear all application data?\n\nThis will permanently remove all stored records from all 11 CSV files while preserving file headers. Application state will be reset to a clean zero-data state.\n\nAre you sure you want to proceed?'
+      '⚠️ PERMANENT ACTION: Clear all application data?\n\nThis will permanently remove all stored records from all 11 CSV files and delete all uploaded documents, while preserving file headers. Application state will be reset to a clean zero-data state.\n\nAre you sure you want to proceed?'
     );
     if (confirmed) {
-      await clearAllData();
-      onShowToast('All application data cleared permanently (zero-data state).', 'warn');
-      navigate('/family-select');
+      try {
+        await clearAllData();
+        onShowToast('All application data and uploaded documents cleared permanently.', 'warn');
+        navigate('/family-select');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        onShowToast(`Notice: ${msg}`, 'warn');
+        navigate('/family-select');
+      }
     }
   };
 
