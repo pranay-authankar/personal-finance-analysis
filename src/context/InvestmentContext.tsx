@@ -35,11 +35,11 @@ import {
   generateRdSchedule
 } from '../utils/postOfficeCalculations';
 import { csvDb } from '../services/csvDatabase';
+import { authService } from '../services/authService';
 import { useDateTime } from './DateTimeContext';
 
 const STORAGE_KEYS = {
-  ACTIVE_MEMBER_ID: 'familyvault_active_member_id',
-  IS_AUTHENTICATED: 'familyvault_authenticated'
+  ACTIVE_MEMBER_ID: 'familyvault_active_member_id'
 };
 
 interface InvestmentContextType {
@@ -47,9 +47,12 @@ interface InvestmentContextType {
   activeMember: FamilyMember;
   activeMemberId: string;
   isAuthenticated: boolean;
+  isAuthChecking: boolean;
+  isVaultConfigured: boolean;
   isCsvLoaded: boolean;
-  login: (pin: string) => boolean;
-  logout: () => void;
+  login: (password: string) => Promise<{ success: boolean; error?: string }>;
+  setupVault: (password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   resetDemoData: () => void;
   clearAllData: () => Promise<void>;
   setActiveMemberId: (id: string) => void;
@@ -208,9 +211,37 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return localStorage.getItem(STORAGE_KEYS.ACTIVE_MEMBER_ID) || '';
   });
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.IS_AUTHENTICATED) === 'true';
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [isVaultConfigured, setIsVaultConfigured] = useState<boolean>(true);
+
+  // Check auth status on launch and verify existing session
+  useEffect(() => {
+    let isMounted = true;
+    async function initAuth() {
+      try {
+        const status = await authService.getStatus();
+        if (!isMounted) return;
+        setIsVaultConfigured(status.isConfigured);
+        if (status.isAuthenticated) {
+          setIsAuthenticated(true);
+        } else if (authService.hasToken()) {
+          const valid = await authService.verifySession();
+          if (isMounted) setIsAuthenticated(valid);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch {
+        if (isMounted) setIsAuthenticated(false);
+      } finally {
+        if (isMounted) setIsAuthChecking(false);
+      }
+    }
+    initAuth();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // State revision counter to force reactivity on CSV file writes
   const [dataRevision, setDataRevision] = useState<number>(0);
@@ -240,10 +271,6 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem(STORAGE_KEYS.ACTIVE_MEMBER_ID, activeMemberId);
     }
   }, [activeMemberId]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.IS_AUTHENTICATED, isAuthenticated ? 'true' : 'false');
-  }, [isAuthenticated]);
 
   // ==========================================================================
   // Derive Application State from CSV Files
@@ -606,15 +633,27 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return found || members[0];
   }, [members, activeMemberId, defaultEmptyMember]);
 
-  const login = (pin: string): boolean => {
-    if (pin.trim().length >= 4) {
+  const login = async (password: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await authService.login(password);
+    if (res.success) {
       setIsAuthenticated(true);
-      return true;
+      return { success: true };
     }
-    return false;
+    return { success: false, error: res.error || 'Authentication failed' };
   };
 
-  const logout = () => {
+  const setupVault = async (password: string): Promise<{ success: boolean; error?: string }> => {
+    const res = await authService.setup(password);
+    if (res.success) {
+      setIsVaultConfigured(true);
+      setIsAuthenticated(true);
+      return { success: true };
+    }
+    return { success: false, error: res.error || 'Vault setup failed' };
+  };
+
+  const logout = async (): Promise<void> => {
+    await authService.logout();
     setIsAuthenticated(false);
   };
 
@@ -1842,8 +1881,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         activeMember,
         activeMemberId,
         isAuthenticated,
+        isAuthChecking,
+        isVaultConfigured,
         isCsvLoaded,
         login,
+        setupVault,
         logout,
         resetDemoData,
         clearAllData,

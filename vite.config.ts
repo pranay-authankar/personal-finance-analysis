@@ -2,7 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleVaultApi, isLoopbackRequest, isValidOriginAndHost } from './server/api.ts';
+import { handleAuthApi, isLoopbackRequest, isValidOriginAndHost } from './server/authManager.ts';
 import { clearManagedUploads } from './server/storage/clearManager.ts';
 
 function csvStoragePlugin(): Plugin {
@@ -160,13 +160,13 @@ function csvStoragePlugin(): Plugin {
   };
 }
 
-function vaultApiPlugin(): Plugin {
+function authApiPlugin(): Plugin {
   return {
-    name: 'vault-api-plugin',
+    name: 'auth-api-plugin',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (req.url && req.url.startsWith('/api/vault/')) {
-          handleVaultApi(req, res, next);
+        if (req.url && req.url.startsWith('/api/auth/')) {
+          handleAuthApi(req, res, next);
           return;
         }
         next();
@@ -176,5 +176,5 @@ function vaultApiPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), csvStoragePlugin(), vaultApiPlugin()],
+  plugins: [react(), csvStoragePlugin(), authApiPlugin()],
 });

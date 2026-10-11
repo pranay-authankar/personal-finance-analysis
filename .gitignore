@@ -33,3 +33,9 @@ temp_clear_all_test_sandbox/
 *.db-shm
 vault_meta.json
 backups/
+.familyvault_auth.json*
+
+# User uploads
+uploads/*
+!uploads/.gitkeep
+

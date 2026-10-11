@@ -47,8 +47,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onShowToast }) => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     onShowToast('Signed out of family vault.', 'info');
     navigate('/login');
   };

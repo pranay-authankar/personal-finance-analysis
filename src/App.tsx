@@ -41,7 +41,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 const AppContent: React.FC = () => {
-  const { isAuthenticated } = useInvestments();
+  const { isAuthenticated, isAuthChecking } = useInvestments();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('familyvault_sidebar_collapsed') === 'true';
@@ -64,6 +64,20 @@ const AppContent: React.FC = () => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3800);
   };
+
+  if (isAuthChecking) {
+    return (
+      <div className="vault-auth-splash">
+        <div className="vault-auth-splash-card">
+          <div className="splash-spinner-wrap">
+            <div className="splash-spinner-ring" />
+          </div>
+          <h2 className="splash-title">FamilyVault</h2>
+          <p className="splash-subtitle">Verifying local vault security credentials...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (

@@ -157,9 +157,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setShowSettingsPopover(false);
-    logout();
+    await logout();
     onShowToast('Signed out of family vault.', 'info');
     navigate('/login');
     onCloseMobile();
