@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { useDateTime } from '../context/DateTimeContext';
@@ -52,17 +52,26 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
 
   // Filter Popover state: Source, Family Member, Amount, Date
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const [filters, setFilters] = useState<RealizedFundsFilterState>({
+  const [filters, setFilters] = useState<RealizedFundsFilterState>(() => ({
     source: 'all',
-    memberId: 'all',
+    memberId: activeMember?.id || 'all',
     amountRange: 'all',
     dateRange: 'all'
-  });
+  }));
+
+  useEffect(() => {
+    if (activeMember?.id) {
+      setFilters((prev) => ({
+        ...prev,
+        memberId: activeMember.id
+      }));
+    }
+  }, [activeMember?.id]);
 
   const handleResetFilters = () => {
     setFilters({
       source: 'all',
-      memberId: 'all',
+      memberId: activeMember?.id || 'all',
       amountRange: 'all',
       dateRange: 'all'
     });

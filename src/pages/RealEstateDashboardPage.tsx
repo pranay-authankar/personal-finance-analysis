@@ -34,19 +34,18 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
   const { now, midnightTicker } = useDateTime();
   const {
     activeMember,
-    properties: allProperties,
     rents,
     getActiveRentForProperty,
     calculatePropertyFinances
   } = useInvestments();
 
-  // All properties for active member (or all vault properties)
+  // All properties strictly for active member
   const properties = useMemo(() => {
-    if (activeMember?.id && activeMember.properties && activeMember.properties.length > 0) {
-      return activeMember.properties.filter((p) => p.property_status !== 'DELETED');
+    if (activeMember?.id) {
+      return (activeMember.properties || []).filter((p) => p.property_status !== 'DELETED');
     }
-    return (allProperties || []).filter((p) => p.property_status !== 'DELETED');
-  }, [activeMember, allProperties]);
+    return [];
+  }, [activeMember]);
 
   // Selected Property for Slide-over Details Panel
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);

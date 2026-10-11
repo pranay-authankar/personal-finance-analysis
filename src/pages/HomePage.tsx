@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { useDateTime } from '../context/DateTimeContext';
@@ -36,7 +36,13 @@ export const HomePage: React.FC = () => {
   const { now, midnightTicker } = useDateTime();
   const [showAddMenu, setShowAddMenu] = useState(false);
 
-  if (!activeMember) return null;
+  useEffect(() => {
+    if (!activeMember || !activeMember.id) {
+      navigate('/family-select', { replace: true });
+    }
+  }, [activeMember, navigate]);
+
+  if (!activeMember || !activeMember.id) return null;
 
   const summary = getPortfolioSummary();
 

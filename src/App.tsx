@@ -4,6 +4,7 @@ import { DateTimeProvider } from './context/DateTimeContext';
 import { InvestmentProvider, useInvestments } from './context/InvestmentContext';
 import { Sidebar } from './components/Sidebar';
 import { TopUtilityBar } from './components/TopUtilityBar';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { FamilySelectPage } from './pages/FamilySelectPage';
 import { HomePage } from './pages/HomePage';
@@ -36,6 +37,15 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { isAuthenticated } = useInvestments();
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
+const RequireMemberRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { members, activeMemberId } = useInvestments();
+  const isValidMember = members.some((m) => m.id === activeMemberId);
+  if (!isValidMember) {
+    return <Navigate to="/family-select" replace />;
   }
   return <>{children}</>;
 };
@@ -83,8 +93,9 @@ const AppContent: React.FC = () => {
     return (
       <div className="app-shell auth-only">
         <Routes>
+          <Route path="/" element={<LandingPage onShowToast={showToast} />} />
           <Route path="/login" element={<LoginPage onShowToast={showToast} />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 
         <div className="toast-container">
@@ -117,35 +128,40 @@ const AppContent: React.FC = () => {
 
         <main className="app-page-wrapper">
           <Routes>
-            <Route path="/login" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<Navigate to="/family-select" replace />} />
+            <Route path="/login" element={<Navigate to="/family-select" replace />} />
 
-        <Route
-          path="/family-select"
-          element={
-            <ProtectedRoute>
-              <FamilySelectPage onShowToast={showToast} />
-            </ProtectedRoute>
-          }
-        />
+            <Route
+              path="/family-select"
+              element={
+                <ProtectedRoute>
+                  <FamilySelectPage onShowToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
 
-        <Route
-          path="/home"
-          element={
-            <ProtectedRoute>
-              <HomePage />
-            </ProtectedRoute>
-          }
-        />
+            <Route
+              path="/home"
+              element={
+                <ProtectedRoute>
+                  <RequireMemberRoute>
+                    <HomePage />
+                  </RequireMemberRoute>
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Fixed Deposits Routes */}
-        <Route
-          path="/fds"
-          element={
-            <ProtectedRoute>
-              <FdDashboardPage onShowToast={showToast} />
-            </ProtectedRoute>
-          }
-        />
+            {/* Fixed Deposits Routes */}
+            <Route
+              path="/fds"
+              element={
+                <ProtectedRoute>
+                  <RequireMemberRoute>
+                    <FdDashboardPage onShowToast={showToast} />
+                  </RequireMemberRoute>
+                </ProtectedRoute>
+              }
+            />
 
         <Route
           path="/fds/:id"
@@ -170,7 +186,9 @@ const AppContent: React.FC = () => {
           path="/post-office"
           element={
             <ProtectedRoute>
-              <PostOfficeDashboardPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <PostOfficeDashboardPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -179,7 +197,9 @@ const AppContent: React.FC = () => {
           path="/post-office/:id"
           element={
             <ProtectedRoute>
-              <PostOfficeDetailsPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <PostOfficeDetailsPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -188,7 +208,9 @@ const AppContent: React.FC = () => {
           path="/add-post-office"
           element={
             <ProtectedRoute>
-              <AddPostOfficePage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <AddPostOfficePage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -198,7 +220,9 @@ const AppContent: React.FC = () => {
           path="/bullions"
           element={
             <ProtectedRoute>
-              <BullionsDashboardPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <BullionsDashboardPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -207,7 +231,9 @@ const AppContent: React.FC = () => {
           path="/bullions/:id"
           element={
             <ProtectedRoute>
-              <BullionDetailsPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <BullionDetailsPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -216,7 +242,9 @@ const AppContent: React.FC = () => {
           path="/add-bullion"
           element={
             <ProtectedRoute>
-              <AddBullionPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <AddBullionPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -226,7 +254,9 @@ const AppContent: React.FC = () => {
           path="/real-estate"
           element={
             <ProtectedRoute>
-              <RealEstateDashboardPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <RealEstateDashboardPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -235,7 +265,9 @@ const AppContent: React.FC = () => {
           path="/real-estate/:id"
           element={
             <ProtectedRoute>
-              <RealEstateDetailsPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <RealEstateDetailsPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -244,7 +276,9 @@ const AppContent: React.FC = () => {
           path="/add-property"
           element={
             <ProtectedRoute>
-              <AddPropertyPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <AddPropertyPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -254,7 +288,9 @@ const AppContent: React.FC = () => {
           path="/realized-funds"
           element={
             <ProtectedRoute>
-              <RealizedFundsDashboardPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <RealizedFundsDashboardPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
@@ -263,13 +299,15 @@ const AppContent: React.FC = () => {
           path="/add-realized-fund"
           element={
             <ProtectedRoute>
-              <AddRealizedFundPage onShowToast={showToast} />
+              <RequireMemberRoute>
+                <AddRealizedFundPage onShowToast={showToast} />
+              </RequireMemberRoute>
             </ProtectedRoute>
           }
         />
 
         {/* Fallback route */}
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="*" element={<Navigate to="/family-select" replace />} />
       </Routes>
     </main>
   </div>

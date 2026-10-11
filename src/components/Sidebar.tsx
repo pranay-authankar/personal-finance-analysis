@@ -37,7 +37,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { activeMember, logout, clearAllData, isAuthenticated } = useInvestments();
+  const { activeMember, members, logout, clearAllData, isAuthenticated } = useInvestments();
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
 
@@ -74,8 +74,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (p) => p.property_status === 'ACTIVE'
   ).length;
   const realizedCount = activeMember?.realizedFunds?.length || 0;
+  const isFamilySelect = location.pathname === '/family-select';
 
   const navItems = [
+    {
+      id: 'family-select',
+      label: 'Family Members',
+      icon: Users,
+      path: '/family-select',
+      active: isFamilySelect,
+      count: members.length,
+      badgeColor: 'var(--color-navy)'
+    },
     {
       id: 'dashboard',
       label: 'Dashboard',

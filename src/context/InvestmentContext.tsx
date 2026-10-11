@@ -56,7 +56,8 @@ interface InvestmentContextType {
   resetDemoData: () => void;
   clearAllData: () => Promise<void>;
   setActiveMemberId: (id: string) => void;
-  addMember: (name: string, role: string, avatar: string) => FamilyMember;
+  addMember: (name: string, role?: string, avatar?: string) => FamilyMember;
+  deleteMember: (id: string) => void;
 
   // Fixed Deposits (Backed by fds.csv, assets.csv & documents.csv)
   fds: FdRecord[];
@@ -706,6 +707,15 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       propertyPayments: [],
       realizedFunds: []
     };
+  };
+
+  const deleteMember = (id: string): void => {
+    csvDb.deleteFamilyMember(id);
+    if (activeMemberId === id) {
+      const remaining = members.filter((m) => m.id !== id);
+      setActiveMemberIdState(remaining.length > 0 ? remaining[0].id : '');
+    }
+    bumpRevision();
   };
 
   // ============================================================================
@@ -1891,6 +1901,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         clearAllData,
         setActiveMemberId,
         addMember,
+        deleteMember,
         fds: csvDb.fds,
         addOrUpdateFd,
         deleteFd,
