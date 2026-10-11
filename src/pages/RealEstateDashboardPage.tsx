@@ -12,12 +12,14 @@ import {
 import { RealEstateCard } from '../components/RealEstateCard';
 import { RealEstateDetailsPanel } from '../components/RealEstateDetailsPanel';
 import { RealEstateFilterPopover } from '../components/RealEstateFilterPopover';
+import { RealEstateRentSection } from '../components/RealEstateRentSection';
 import { AddPropertyModal } from '../components/AddPropertyModal';
 import {
   Plus,
   Search,
   X,
   Building,
+  KeyRound,
   LayoutGrid,
   List as ListIcon,
   Clock
@@ -36,8 +38,16 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
     activeMember,
     rents,
     getActiveRentForProperty,
-    calculatePropertyFinances
+    calculatePropertyFinances,
+    getAllRentPayments,
+    startRent,
+    updateRent,
+    stopRent,
+    recordRentPayment
   } = useInvestments();
+
+  // Primary Section: 'properties' | 'rent'
+  const [mainSection, setMainSection] = useState<'properties' | 'rent'>('properties');
 
   // All properties strictly for active member
   const properties = useMemo(() => {
@@ -288,7 +298,11 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
       {/* 2. Three compact summary cards: Total Purchase Value, Active Properties, Rental Income */}
       <div className="bullion-overview-grid">
         {/* Card 1: Total Purchase Value */}
-        <div className="bullion-overview-card">
+        <div
+          className={`bullion-overview-card re-overview-card-interactive ${mainSection === 'properties' ? 'active-tab' : ''}`}
+          onClick={() => setMainSection('properties')}
+          title="Click to view all property holdings"
+        >
           <span className="bullion-overview-kicker">Total Purchase Value</span>
           <div className="bullion-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
@@ -300,7 +314,11 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
         </div>
 
         {/* Card 2: Active Properties */}
-        <div className="bullion-overview-card">
+        <div
+          className={`bullion-overview-card re-overview-card-interactive ${mainSection === 'properties' ? 'active-tab' : ''}`}
+          onClick={() => setMainSection('properties')}
+          title="Click to view all property holdings"
+        >
           <span className="bullion-overview-kicker">Active Properties</span>
           <div className="bullion-overview-value">
             {activeProperties.length}
@@ -311,9 +329,18 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
           </div>
         </div>
 
-        {/* Card 3: Rental Income (Kept strictly separate from purchase value) */}
-        <div className="bullion-overview-card">
-          <span className="bullion-overview-kicker">Rental Income</span>
+        {/* Card 3: Rental Income (Dedicated section trigger) */}
+        <div
+          className={`bullion-overview-card re-overview-card-interactive ${mainSection === 'rent' ? 'active-tab' : ''}`}
+          onClick={() => setMainSection('rent')}
+          title="Click to view dedicated Rental Management section, yields & payment ledgers"
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="bullion-overview-kicker">Rental Income</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-gold)', fontWeight: 700 }}>
+              {mainSection === 'rent' ? 'Viewing Rent Section' : 'Open Rent Section →'}
+            </span>
+          </div>
           <div className="bullion-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalMonthlyRentalIncome)}
@@ -325,199 +352,249 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
         </div>
       </div>
 
-      {/* 3. Simple filter tabs: All | Land | Commercial | Private House */}
-      <div className="bullion-category-tabs-bar">
-        {CATEGORY_TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            className={`bullion-category-tab ${activeTab === tab ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            <span>{tab}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* 4. Controls Bar: Search + Compact Filter (Status, Location, Price) + View Switcher */}
-      <div className="bullion-toolbar-container">
-        {/* Search */}
-        <div className="bullion-search-wrapper">
-          <Search size={16} className="bullion-search-icon" />
-          <input
-            type="text"
-            className="bullion-search-input"
-            placeholder="Search by name, location, party..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              type="button"
-              className="bullion-search-clear-btn"
-              onClick={() => setSearch('')}
-              title="Clear search"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-
-        {/* Actions: Clear filters, Sort select, Filter popover, View switcher */}
-        <div className="bullion-toolbar-actions">
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={handleResetFilters}
-              className="bullion-toolbar-reset-link"
-            >
-              Clear filters
-            </button>
-          )}
-
-          {/* Sort By Dropdown (Features 1 & 2) */}
-          <select
-            className="re-sort-select"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as any)}
-            aria-label="Sort properties"
-          >
-            <option value="due_date">Sort: Upcoming Due Date</option>
-            <option value="due_amount_desc">Sort: Highest Due Left</option>
-            <option value="newest">Sort: Newest Purchase</option>
-            <option value="price_desc">Sort: Price: High to Low</option>
-            <option value="price_asc">Sort: Price: Low to High</option>
-            <option value="name">Sort: Name (A to Z)</option>
-          </select>
-
-          {/* Compact filter control for Status, Location, and Purchase Price */}
-          <RealEstateFilterPopover
-            isOpen={isFilterOpen}
-            onToggle={() => setIsFilterOpen(!isFilterOpen)}
-            onClose={() => setIsFilterOpen(false)}
-            filters={filters}
-            onChange={setFilters}
-            onReset={handleResetFilters}
-            availableLocations={availableLocations}
-          />
-
-          {/* View Toggle */}
-          <div className="bullion-view-toggle">
-            <button
-              type="button"
-              onClick={() => setViewMode('cards')}
-              className={`bullion-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
-              title="Grid View"
-            >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={`bullion-view-btn ${viewMode === 'list' ? 'active' : ''}`}
-              title="List View"
-            >
-              <ListIcon size={15} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4b. Compact Deadline Colour Map Reference Strip (Feature 3 - Occupies minimal space) */}
-      <div className="re-color-map-strip">
-        <span className="re-color-map-title">
-          <Clock size={11} />
-          <span>Deadline Colour Map:</span>
-        </span>
-        <span className="re-color-map-pill overdue" title="Payment deadline has passed">
-          <span className="re-color-map-dot" />
-          <span>Overdue</span>
-        </span>
-        <span className="re-color-map-pill urgent" title="Payment due within 15 days">
-          <span className="re-color-map-dot" />
-          <span>&lt; 15 Days</span>
-        </span>
-        <span className="re-color-map-pill medium" title="Payment due in 15 to 45 days">
-          <span className="re-color-map-dot" />
-          <span>15 – 45 Days</span>
-        </span>
-        <span className="re-color-map-pill upcoming" title="Payment due in more than 45 days">
-          <span className="re-color-map-dot" />
-          <span>&gt; 45 Days</span>
-        </span>
-        <span
-          className="re-color-map-pill no-due"
-          title="Initial payment paid (less than purchase price) but due date not specified"
+      {/* Primary Section Switcher (Properties vs Dedicated Rental Management) */}
+      <div className="re-main-section-switcher">
+        <button
+          type="button"
+          className={`re-section-pill-btn ${mainSection === 'properties' ? 'active' : ''}`}
+          onClick={() => setMainSection('properties')}
         >
-          <span className="re-color-map-dot" />
-          <span>No Due Date</span>
-        </span>
-        <span className="re-color-map-pill completed" title="100% Fully Paid">
-          <span className="re-color-map-dot" />
-          <span>Fully Paid</span>
-        </span>
+          <Building size={15} />
+          <span>Properties</span>
+          <span className="re-section-pill-badge">{properties.length}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`re-section-pill-btn ${mainSection === 'rent' ? 'active' : ''}`}
+          onClick={() => setMainSection('rent')}
+        >
+          <KeyRound size={15} />
+          <span>Rental Management</span>
+          <span className="re-section-pill-badge">
+            {activeRentsCount} {activeRentsCount === 1 ? 'Lease' : 'Leases'}
+          </span>
+        </button>
       </div>
 
-      {/* 5. Main Area: Clean Cards Grid or Empty State */}
-      {filteredProperties.length === 0 ? (
-        <div className="bullion-empty-container">
-          <div className="bullion-empty-icon-circle">
-            <Building size={28} color="#0F172A" />
-          </div>
-          <h3 className="bullion-empty-title">
-            {hasActiveFilters ? 'No Matching Properties' : 'No properties yet'}
-          </h3>
-          <p className="bullion-empty-subtitle">
-            {hasActiveFilters
-              ? 'No property records matched your active filter criteria. Try resetting filters.'
-              : 'Add land, commercial spaces, or houses to track values and rental income.'}
-          </p>
-
-          {hasActiveFilters ? (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleResetFilters}
-            >
-              Reset Filters
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn btn-primary bullion-primary-add-btn"
-              onClick={handleOpenAddModal}
-            >
-              <Plus size={16} />
-              <span>Add Property</span>
-            </button>
-          )}
-        </div>
-      ) : viewMode === 'cards' ? (
-        <div className="bullion-grid-layout">
-          {filteredProperties.map((p) => (
-            <RealEstateCard
-              key={p.p_id}
-              property={p}
-              activeRent={getActiveRentForProperty(p.p_id)}
-              finances={calculatePropertyFinances(p.p_id)}
-              isSelected={selectedPropertyId === p.p_id}
-              onClick={() => setSelectedPropertyId(p.p_id)}
-            />
-          ))}
-        </div>
+      {/* 3. Conditional View: Dedicated Rental Management OR Properties Portfolio */}
+      {mainSection === 'rent' ? (
+        <RealEstateRentSection
+          properties={properties}
+          rents={rents}
+          allRentPayments={getAllRentPayments()}
+          onSelectProperty={(propertyId) => setSelectedPropertyId(propertyId)}
+          onRecordRentPayment={async (p_id, payload) => {
+            await recordRentPayment(p_id, payload);
+          }}
+          onUpdateRent={async (r_id, updates) => {
+            await updateRent(r_id, updates);
+          }}
+          onStopRent={async (r_id) => {
+            await stopRent(r_id);
+          }}
+          onStartRent={async (p_id, payload) => {
+            await startRent(p_id, payload, payload.documents);
+          }}
+          onShowToast={toastHandler}
+        />
       ) : (
-        <div className="bullion-list-layout">
-          {filteredProperties.map((p) => (
-            <RealEstateCard
-              key={p.p_id}
-              property={p}
-              activeRent={getActiveRentForProperty(p.p_id)}
-              finances={calculatePropertyFinances(p.p_id)}
-              isSelected={selectedPropertyId === p.p_id}
-              onClick={() => setSelectedPropertyId(p.p_id)}
-            />
-          ))}
-        </div>
+        <>
+          {/* 3a. Simple filter tabs: All | Land | Commercial | Private House */}
+          <div className="bullion-category-tabs-bar">
+            {CATEGORY_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={`bullion-category-tab ${activeTab === tab ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab)}
+              >
+                <span>{tab}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* 3b. Controls Bar: Search + Compact Filter (Status, Location, Price) + View Switcher */}
+          <div className="bullion-toolbar-container">
+            {/* Search */}
+            <div className="bullion-search-wrapper">
+              <Search size={16} className="bullion-search-icon" />
+              <input
+                type="text"
+                className="bullion-search-input"
+                placeholder="Search by name, location, party..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  type="button"
+                  className="bullion-search-clear-btn"
+                  onClick={() => setSearch('')}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Actions: Clear filters, Sort select, Filter popover, View switcher */}
+            <div className="bullion-toolbar-actions">
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="bullion-toolbar-reset-link"
+                >
+                  Clear filters
+                </button>
+              )}
+
+              {/* Sort By Dropdown (Features 1 & 2) */}
+              <select
+                className="re-sort-select"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as any)}
+                aria-label="Sort properties"
+              >
+                <option value="due_date">Sort: Upcoming Due Date</option>
+                <option value="due_amount_desc">Sort: Highest Due Left</option>
+                <option value="newest">Sort: Newest Purchase</option>
+                <option value="price_desc">Sort: Price: High to Low</option>
+                <option value="price_asc">Sort: Price: Low to High</option>
+                <option value="name">Sort: Name (A to Z)</option>
+              </select>
+
+              {/* Compact filter control for Status, Location, and Purchase Price */}
+              <RealEstateFilterPopover
+                isOpen={isFilterOpen}
+                onToggle={() => setIsFilterOpen(!isFilterOpen)}
+                onClose={() => setIsFilterOpen(false)}
+                filters={filters}
+                onChange={setFilters}
+                onReset={handleResetFilters}
+                availableLocations={availableLocations}
+              />
+
+              {/* View Toggle */}
+              <div className="bullion-view-toggle">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  className={`bullion-view-btn ${viewMode === 'cards' ? 'active' : ''}`}
+                  title="Grid View"
+                >
+                  <LayoutGrid size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('list')}
+                  className={`bullion-view-btn ${viewMode === 'list' ? 'active' : ''}`}
+                  title="List View"
+                >
+                  <ListIcon size={15} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 3c. Compact Deadline Colour Map Reference Strip (Feature 3 - Occupies minimal space) */}
+          <div className="re-color-map-strip">
+            <span className="re-color-map-title">
+              <Clock size={11} />
+              <span>Deadline Colour Map:</span>
+            </span>
+            <span className="re-color-map-pill overdue" title="Payment deadline has passed">
+              <span className="re-color-map-dot" />
+              <span>Overdue</span>
+            </span>
+            <span className="re-color-map-pill urgent" title="Payment due within 15 days">
+              <span className="re-color-map-dot" />
+              <span>&lt; 15 Days</span>
+            </span>
+            <span className="re-color-map-pill medium" title="Payment due in 15 to 45 days">
+              <span className="re-color-map-dot" />
+              <span>15 – 45 Days</span>
+            </span>
+            <span className="re-color-map-pill upcoming" title="Payment due in more than 45 days">
+              <span className="re-color-map-dot" />
+              <span>&gt; 45 Days</span>
+            </span>
+            <span
+              className="re-color-map-pill no-due"
+              title="Initial payment paid (less than purchase price) but due date not specified"
+            >
+              <span className="re-color-map-dot" />
+              <span>No Due Date</span>
+            </span>
+            <span className="re-color-map-pill completed" title="100% Fully Paid">
+              <span className="re-color-map-dot" />
+              <span>Fully Paid</span>
+            </span>
+          </div>
+
+          {/* 3d. Main Area: Clean Cards Grid or Empty State */}
+          {filteredProperties.length === 0 ? (
+            <div className="bullion-empty-container">
+              <div className="bullion-empty-icon-circle">
+                <Building size={28} color="#0F172A" />
+              </div>
+              <h3 className="bullion-empty-title">
+                {hasActiveFilters ? 'No Matching Properties' : 'No properties yet'}
+              </h3>
+              <p className="bullion-empty-subtitle">
+                {hasActiveFilters
+                  ? 'No property records matched your active filter criteria. Try resetting filters.'
+                  : 'Add land, commercial spaces, or houses to track values and rental income.'}
+              </p>
+
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleResetFilters}
+                >
+                  Reset Filters
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary bullion-primary-add-btn"
+                  onClick={handleOpenAddModal}
+                >
+                  <Plus size={16} />
+                  <span>Add Property</span>
+                </button>
+              )}
+            </div>
+          ) : viewMode === 'cards' ? (
+            <div className="bullion-grid-layout">
+              {filteredProperties.map((p) => (
+                <RealEstateCard
+                  key={p.p_id}
+                  property={p}
+                  activeRent={getActiveRentForProperty(p.p_id)}
+                  finances={calculatePropertyFinances(p.p_id)}
+                  isSelected={selectedPropertyId === p.p_id}
+                  onClick={() => setSelectedPropertyId(p.p_id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bullion-list-layout">
+              {filteredProperties.map((p) => (
+                <RealEstateCard
+                  key={p.p_id}
+                  property={p}
+                  activeRent={getActiveRentForProperty(p.p_id)}
+                  finances={calculatePropertyFinances(p.p_id)}
+                  isSelected={selectedPropertyId === p.p_id}
+                  onClick={() => setSelectedPropertyId(p.p_id)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* 6. Slide-over Details Panel (Opens when card is clicked) */}

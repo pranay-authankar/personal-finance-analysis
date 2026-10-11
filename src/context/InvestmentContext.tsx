@@ -37,6 +37,7 @@ import {
 import { csvDb } from '../services/csvDatabase';
 import { authService } from '../services/authService';
 import { useDateTime } from './DateTimeContext';
+import { getLocalDateString, parseLocalDate } from '../utils/dateUtils';
 
 const STORAGE_KEYS = {
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id'
@@ -123,9 +124,26 @@ interface InvestmentContextType {
       r_notes?: string;
     },
     documents?: { d_name: string; d_link: string }[]
-  ) => RentRecord;
+  ) => Promise<RentRecord>;
 
-  stopRent: (r_id: string) => void;
+  updateRent: (
+    r_id: string,
+    updates: Partial<RentRecord>
+  ) => Promise<RentRecord>;
+
+  stopRent: (r_id: string, endDate?: string) => Promise<void>;
+  recordRentPayment: (
+    p_id: string,
+    paymentData: {
+      amount: number;
+      payment_date?: string;
+      next_rent_due?: string;
+      notes?: string;
+      r_id?: string;
+    }
+  ) => Promise<PaymentRecord>;
+  getRentPaymentsForProperty: (p_id: string) => PaymentRecord[];
+  getAllRentPayments: () => PaymentRecord[];
   getActiveRentForProperty: (p_id: string) => RentRecord | undefined;
   getRentsForProperty: (p_id: string) => RentRecord[];
 
@@ -527,7 +545,12 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // 5. Rents
       const propIdSet = new Set(memberProps.map((p) => p.p_id));
-      const memberRents = csvDb.rents.filter((r) => propIdSet.has(r.p_id));
+      const memberRents: RentRecord[] = csvDb.rents
+        .filter((r) => propIdSet.has(r.p_id))
+        .map((r) => ({
+          ...r,
+          is_active: !r.rent_end_date || r.rent_end_date >= todayStr
+        }));
 
       // 6. Payments
       const memberPayments = csvDb.payments.filter((p) => assetIds.has(p.a_id));
@@ -1400,7 +1423,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   };
 
-  const startRent = (
+  const startRent = async (
     p_id: string,
     rentData: {
       tenant_name: string;
@@ -1412,7 +1435,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       r_notes?: string;
     },
     documents?: { d_name: string; d_link: string }[]
-  ): RentRecord => {
+  ): Promise<RentRecord> => {
     const prop = csvDb.properties.find((p) => p.p_id === p_id);
     const a_id = prop?.a_id || `ast_${p_id}`;
     const r_id = `rent_${Date.now()}`;
@@ -1425,18 +1448,19 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       rent_start_date: rentData.rent_start_date || todayStr,
       rent_end_date: rentData.rent_end_date || '',
       next_rent_due: rentData.next_rent_due || '',
-      r_notes: rentData.r_notes?.trim() || ''
+      r_notes: rentData.r_notes?.trim() || '',
+      is_active: !rentData.rent_end_date || rentData.rent_end_date >= todayStr
     };
 
     // Deactivate previous active rent if any
     const activePrev = csvDb.getActiveRentForProperty(p_id, now);
     if (activePrev) {
-      csvDb.updateRent(activePrev.r_id, {
+      await csvDb.updateRent(activePrev.r_id, {
         rent_end_date: todayStr
       });
     }
 
-    csvDb.addRent(newRent);
+    await csvDb.addRent(newRent);
 
     const docsToSave = (documents && documents.length > 0) ? documents : ((rentData as any).documents || []);
     if (docsToSave && docsToSave.length > 0) {
@@ -1449,18 +1473,120 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         d_link: doc.d_link || '',
         p_id
       }));
-      csvDb.addDocuments(newDocs);
+      await csvDb.addDocuments(newDocs);
     }
 
     bumpRevision();
     return newRent;
   };
 
-  const stopRent = (r_id: string) => {
-    csvDb.updateRent(r_id, {
-      rent_end_date: todayStr
+  const updateRent = async (
+    r_id: string,
+    updates: Partial<RentRecord>
+  ): Promise<RentRecord> => {
+    const existing = csvDb.rents.find((r) => r.r_id === r_id);
+    if (!existing) {
+      throw new Error(`Rent record ${r_id} not found.`);
+    }
+
+    const updated: RentRecord = {
+      ...existing,
+      tenant_name: updates.tenant_name !== undefined ? updates.tenant_name.trim() : existing.tenant_name,
+      tenant_contact: updates.tenant_contact !== undefined ? updates.tenant_contact.trim() : existing.tenant_contact,
+      rent_amount: updates.rent_amount !== undefined ? Number(updates.rent_amount) || 0 : existing.rent_amount,
+      rent_start_date: updates.rent_start_date !== undefined ? updates.rent_start_date : existing.rent_start_date,
+      rent_end_date: updates.rent_end_date !== undefined ? updates.rent_end_date : existing.rent_end_date,
+      next_rent_due: updates.next_rent_due !== undefined ? updates.next_rent_due : existing.next_rent_due,
+      r_notes: updates.r_notes !== undefined ? updates.r_notes.trim() : existing.r_notes
+    };
+
+    await csvDb.updateRent(r_id, updated);
+    bumpRevision();
+    return {
+      ...updated,
+      is_active: !updated.rent_end_date || updated.rent_end_date >= todayStr
+    };
+  };
+
+  const stopRent = async (r_id: string, endDate?: string): Promise<void> => {
+    await csvDb.updateRent(r_id, {
+      rent_end_date: endDate || todayStr
     });
     bumpRevision();
+  };
+
+  const recordRentPayment = async (
+    p_id: string,
+    paymentData: {
+      amount: number;
+      payment_date?: string;
+      next_rent_due?: string;
+      notes?: string;
+      r_id?: string;
+    }
+  ): Promise<PaymentRecord> => {
+    const prop = csvDb.properties.find((p) => p.p_id === p_id);
+    const a_id = prop?.a_id || `ast_${p_id}`;
+    const paymentRecord: PaymentRecord = {
+      payment_id: `pay_${Date.now()}_rent`,
+      a_id,
+      payment_type: 'RECEIVED',
+      payment_context: 'RENT',
+      amount: Number(paymentData.amount) || 0,
+      payment_date: paymentData.payment_date || todayStr,
+      due_date: '',
+      status: 'RECEIVED',
+      notes: paymentData.notes?.trim() || 'Monthly rent payment received',
+      p_id
+    };
+
+    await csvDb.addPayment(paymentRecord);
+
+    // If next_rent_due is provided or lease exists, advance next_rent_due on the rent record
+    const activeRent = paymentData.r_id
+      ? csvDb.rents.find((r) => r.r_id === paymentData.r_id)
+      : csvDb.getActiveRentForProperty(p_id, now);
+
+    if (activeRent) {
+      let calculatedNextDue = paymentData.next_rent_due;
+      if (!calculatedNextDue && activeRent.next_rent_due) {
+        const parsed = parseLocalDate(activeRent.next_rent_due);
+        if (parsed) {
+          parsed.setMonth(parsed.getMonth() + 1);
+          calculatedNextDue = getLocalDateString(parsed);
+        }
+      }
+      if (calculatedNextDue) {
+        await csvDb.updateRent(activeRent.r_id, {
+          next_rent_due: calculatedNextDue
+        });
+      }
+    }
+
+    bumpRevision();
+    return paymentRecord;
+  };
+
+  const getRentPaymentsForProperty = (p_id: string): PaymentRecord[] => {
+    const prop = csvDb.properties.find((p) => p.p_id === p_id);
+    const a_id = prop?.a_id;
+    return csvDb.payments.filter(
+      (p) =>
+        ((a_id && p.a_id === a_id) || p.p_id === p_id) &&
+        p.payment_context === 'RENT' &&
+        (p.payment_type === 'RECEIVED' || p.status === 'RECEIVED' || p.status === 'PAID')
+    );
+  };
+
+  const getAllRentPayments = (): PaymentRecord[] => {
+    const propIds = new Set((activeMember?.properties || []).map((p) => p.p_id));
+    const assetIds = new Set((activeMember?.properties || []).map((p) => p.a_id));
+    return csvDb.payments.filter(
+      (p) =>
+        (assetIds.has(p.a_id) || (p.p_id && propIds.has(p.p_id))) &&
+        p.payment_context === 'RENT' &&
+        (p.payment_type === 'RECEIVED' || p.status === 'RECEIVED' || p.status === 'PAID')
+    );
   };
 
   const getActiveRentForProperty = (p_id: string): RentRecord | undefined => {
@@ -1983,6 +2109,15 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   }, [dataRevision]);
 
+  const allRentsWithStatus: RentRecord[] = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    dataRevision;
+    return csvDb.rents.map((r) => ({
+      ...r,
+      is_active: !r.rent_end_date || r.rent_end_date >= todayStr
+    }));
+  }, [dataRevision, midnightTicker, now]);
+
   return (
     <InvestmentContext.Provider
       value={{
@@ -2015,7 +2150,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteBullion,
         getBullionById,
         properties: allPropertiesWithStatus,
-        rents: csvDb.rents,
+        rents: allRentsWithStatus,
         propertyDocuments: csvDb.documents,
         propertyPayments: csvDb.payments,
         realisedFunds: activeMember.realizedFunds || [],
@@ -2024,7 +2159,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteProperty,
         getPropertyById,
         startRent,
+        updateRent,
         stopRent,
+        recordRentPayment,
+        getRentPaymentsForProperty,
+        getAllRentPayments,
         getActiveRentForProperty,
         getRentsForProperty,
         sellProperty,

@@ -5720,6 +5720,78 @@
   box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
 }
 
+/* Real Estate Main Section Switcher (Properties vs Rental Management) */
+.re-main-section-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: var(--bg-surface-soft);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  width: fit-content;
+}
+
+.re-section-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-charcoal-light);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.re-section-pill-btn:hover {
+  color: var(--color-navy);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.re-section-pill-btn.active {
+  background: #FFFFFF;
+  color: var(--color-navy);
+  border-color: var(--border-card);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.re-section-pill-badge {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--bg-surface-soft);
+  color: var(--color-charcoal-muted);
+  font-weight: 700;
+}
+
+.re-section-pill-btn.active .re-section-pill-badge {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--color-navy);
+}
+
+.re-overview-card-interactive {
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.re-overview-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-gold);
+  box-shadow: 0 4px 12px rgba(180, 130, 20, 0.08);
+}
+
+.re-overview-card-interactive.active-tab {
+  border-color: var(--color-gold);
+  background: linear-gradient(to bottom, #FFFFFF, rgba(217, 119, 6, 0.03));
+  box-shadow: 0 0 0 1px var(--color-gold);
+}
+
 
 
 

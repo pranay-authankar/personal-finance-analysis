@@ -574,6 +574,103 @@ export class CsvDatabaseService {
     await this.persistTable('rents', this.rents, RENTS_COLUMNS);
   }
 
+  public async startRent(
+    p_id: string,
+    payload: {
+      tenant_name: string;
+      tenant_contact: string;
+      rent_amount: number;
+      rent_start_date: string;
+      rent_end_date?: string;
+      next_rent_due: string;
+      r_notes?: string;
+    },
+    documents?: { d_name: string; d_link: string }[]
+  ): Promise<RentRecord> {
+    const r_id = `rent_${Date.now()}`;
+    const newRent: RentRecord = {
+      r_id,
+      p_id,
+      tenant_name: payload.tenant_name.trim(),
+      tenant_contact: payload.tenant_contact.trim(),
+      rent_amount: Number(payload.rent_amount) || 0,
+      rent_start_date: payload.rent_start_date,
+      rent_end_date: payload.rent_end_date || '',
+      next_rent_due: payload.next_rent_due,
+      r_notes: payload.r_notes?.trim() || ''
+    };
+
+    await this.addRent(newRent);
+
+    if (documents && documents.length > 0) {
+      const newDocs: DocumentRecord[] = documents.map((doc, idx) => ({
+        d_id: `doc_${Date.now()}_${idx}`,
+        p_id,
+        r_id,
+        d_name: doc.d_name,
+        d_link: doc.d_link,
+        d_category: 'RENTAL'
+      }));
+      await this.addDocuments(newDocs);
+    }
+
+    return newRent;
+  }
+
+  public async stopRent(r_id: string, endDate?: string): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    await this.updateRent(r_id, {
+      rent_end_date: endDate || today
+    });
+  }
+
+  public async recordRentPayment(
+    p_id: string,
+    paymentData: {
+      amount: number;
+      payment_date?: string;
+      next_rent_due?: string;
+      notes?: string;
+      r_id?: string;
+    }
+  ): Promise<PaymentRecord> {
+    const today = new Date().toISOString().split('T')[0];
+    const prop = this.properties.find((p) => p.p_id === p_id);
+    const a_id = prop?.a_id || `ast_${p_id}`;
+    const paymentRecord: PaymentRecord = {
+      payment_id: `pay_${Date.now()}_rent`,
+      a_id,
+      payment_type: 'RECEIVED',
+      payment_context: 'RENT',
+      amount: Number(paymentData.amount) || 0,
+      payment_date: paymentData.payment_date || today,
+      due_date: '',
+      status: 'RECEIVED',
+      notes: paymentData.notes?.trim() || 'Monthly rent payment received',
+      p_id
+    };
+
+    await this.addPayment(paymentRecord);
+
+    const activeRent = paymentData.r_id
+      ? this.rents.find((r) => r.r_id === paymentData.r_id)
+      : this.getActiveRentForProperty(p_id);
+
+    if (activeRent && paymentData.next_rent_due) {
+      await this.updateRent(activeRent.r_id, {
+        next_rent_due: paymentData.next_rent_due
+      });
+    }
+
+    return paymentRecord;
+  }
+
+  public getRentPaymentsForProperty(p_id: string): PaymentRecord[] {
+    return this.payments.filter(
+      (p) => p.p_id === p_id && (p.payment_context === 'RENT' || (p.payment_type === 'RECEIVED' && !p.payment_context))
+    );
+  }
+
   // ============================================================================
   // Asset Sales CRUD (asset_sales.csv)
   // ============================================================================

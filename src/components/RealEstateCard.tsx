@@ -144,6 +144,43 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
         )}
       </div>
 
+      {/* Active Tenancy Box */}
+      {activeRent && !isSold && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '7px 10px',
+            borderRadius: '6px',
+            background: 'rgba(22, 163, 74, 0.08)',
+            border: '1px solid rgba(22, 163, 74, 0.25)',
+            fontSize: '12px'
+          }}
+          title={`Active lease with tenant ${activeRent.tenant_name}`}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+            <span
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: '#16A34A',
+                boxShadow: '0 0 0 2px rgba(22, 163, 74, 0.2)',
+                flexShrink: 0
+              }}
+            />
+            <span style={{ fontWeight: 700, color: '#15803D', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Tenant: {activeRent.tenant_name}
+            </span>
+          </div>
+
+          <div style={{ fontWeight: 800, color: '#065F46', flexShrink: 0 }}>
+            ₹ {formatCurrency(Number(activeRent.rent_amount))}<span style={{ fontSize: '10px', fontWeight: 500, color: 'var(--color-charcoal-muted)' }}>/mo</span>
+          </div>
+        </div>
+      )}
+
       {/* Bottom Metrics: Purchase Price (+ Discreet Rent Due Date or Payment Status) */}
       <div className="re-card-footer">
         <div className="re-card-price-box">
@@ -162,18 +199,17 @@ export const RealEstateCard: React.FC<RealEstateCardProps> = ({
 
         {/* Discreet Rental Badge with Next Rent Due Date if active lease */}
         {activeRent && !isSold ? (
-          <div className="re-card-rent-pill" title={`Tenant: ${activeRent.tenant_name}`}>
-            <span className="re-rent-tag-dot" />
-            <span>
-              {activeRent.next_rent_due ? (
-                <>
-                  <Calendar size={11} style={{ marginRight: '3px' }} />
-                  Due: {formatDate(activeRent.next_rent_due)}
-                </>
-              ) : (
-                'Rented'
-              )}
-            </span>
+          <div
+            className="re-card-rent-pill"
+            style={{
+              background: 'rgba(22, 163, 74, 0.08)',
+              borderColor: 'rgba(22, 163, 74, 0.25)',
+              color: '#15803D'
+            }}
+            title={`Tenant: ${activeRent.tenant_name} • Monthly Rent: ₹ ${formatCurrency(Number(activeRent.rent_amount))}`}
+          >
+            <Calendar size={11} style={{ marginRight: '3px' }} />
+            <span>Rent Due: {activeRent.next_rent_due ? formatDate(activeRent.next_rent_due) : 'Ongoing'}</span>
           </div>
         ) : !isSold && paymentLeft > 0 && nextDueDate ? (
           <div
