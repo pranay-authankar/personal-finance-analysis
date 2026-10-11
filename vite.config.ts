@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { handleVaultApi } from './server/api.ts';
 
 function csvStoragePlugin(): Plugin {
   return {
@@ -141,6 +142,21 @@ function csvStoragePlugin(): Plugin {
   };
 }
 
+function vaultApiPlugin(): Plugin {
+  return {
+    name: 'vault-api-plugin',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url && req.url.startsWith('/api/vault/')) {
+          handleVaultApi(req, res, next);
+          return;
+        }
+        next();
+      });
+    }
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), csvStoragePlugin()],
+  plugins: [react(), csvStoragePlugin(), vaultApiPlugin()],
 });

@@ -23,3 +23,11 @@ legacy_static/
 *.njsproj
 *.sln
 *.sw?
+
+# Database and Vault Local Files
+temp_test_vault/
+*.db
+*.db-wal
+*.db-shm
+vault_meta.json
+backups/
