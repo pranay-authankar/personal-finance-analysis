@@ -1,30 +1,34 @@
 import React, { useState, useMemo } from 'react';
-import type { PropertyRecord, RentRecord, PaymentRecord } from '../types';
+import type { PropertyRecord, RentRecord, PaymentRecord, DocumentRecord } from '../types';
+import { useInvestments } from '../context/InvestmentContext';
 import { formatCurrency, formatDate } from '../utils/calculations';
 import { getLocalDateString } from '../utils/dateUtils';
 import {
   KeyRound,
-  Wallet,
   Calendar,
   Phone,
-  Clock,
   Plus,
   Edit3,
-  TrendingUp,
-  Receipt,
   Search,
-  X
+  X,
+  Building,
+  FileText,
+  ExternalLink,
+  Trash2,
+  Upload,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
-import { CollectRentModal } from './CollectRentModal';
 import { EditRentModal } from './EditRentModal';
 import { StartRentModal } from './StartRentModal';
+import { uploadDocumentFile } from '../utils/fileUpload';
 
 interface RealEstateRentSectionProps {
   properties: PropertyRecord[];
   rents: RentRecord[];
-  allRentPayments: PaymentRecord[];
+  allRentPayments?: PaymentRecord[];
   onSelectProperty: (p_id: string) => void;
-  onRecordRentPayment: (
+  onRecordRentPayment?: (
     p_id: string,
     payload: {
       amount: number;
@@ -44,7 +48,7 @@ interface RealEstateRentSectionProps {
       rent_amount: number;
       rent_start_date: string;
       rent_end_date?: string;
-      next_rent_due: string;
+      next_rent_due?: string;
       r_notes?: string;
       documents?: { d_name: string; d_link: string }[];
     }
@@ -55,31 +59,40 @@ interface RealEstateRentSectionProps {
 export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
   properties,
   rents,
-  allRentPayments,
   onSelectProperty,
-  onRecordRentPayment,
   onUpdateRent,
   onStopRent,
   onStartRent,
   onShowToast
 }) => {
+  const { getDocumentsForRent, addDocument, removeDocument } = useInvestments();
   const today = getLocalDateString();
 
   // Modals state
-  const [selectedLeaseForCollection, setSelectedLeaseForCollection] = useState<{ property: PropertyRecord; rent: RentRecord } | null>(null);
   const [selectedLeaseForEdit, setSelectedLeaseForEdit] = useState<{ property: PropertyRecord; rent: RentRecord } | null>(null);
   const [propertyToLease, setPropertyToLease] = useState<PropertyRecord | null>(null);
+  const [isGeneralAddModalOpen, setIsGeneralAddModalOpen] = useState(false);
+
+  // Quick document upload modal state for a rental card
+  const [quickDocModalRent, setQuickDocModalRent] = useState<{ property: PropertyRecord; rent: RentRecord } | null>(null);
+  const [quickDocPreset, setQuickDocPreset] = useState('Rent Agreement');
+  const [quickDocCustomTitle, setQuickDocCustomTitle] = useState('');
+  const [quickDocFileName, setQuickDocFileName] = useState('');
+  const [quickDocFileUrl, setQuickDocFileUrl] = useState('');
+  const [isQuickDocUploading, setIsQuickDocUploading] = useState(false);
+  const [quickDocError, setQuickDocError] = useState('');
 
   // Search filter inside rent section
   const [search, setSearch] = useState('');
 
-  // 1. All active leases strictly linked to user's active properties
+  // Active properties map
   const propertyMap = useMemo(() => {
     const map = new Map<string, PropertyRecord>();
     properties.forEach((p) => map.set(p.p_id, p));
     return map;
   }, [properties]);
 
+  // Active rentals strictly linked to active properties
   const activeRents = useMemo(() => {
     return rents.filter((r) => {
       const prop = propertyMap.get(r.p_id);
@@ -87,7 +100,7 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
     });
   }, [rents, propertyMap, today]);
 
-  // Vacant properties (active properties without any active lease)
+  // Vacant properties (active properties without any active rental)
   const leasedPropertyIds = useMemo(() => {
     return new Set(activeRents.map((r) => r.p_id));
   }, [activeRents]);
@@ -95,33 +108,6 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
   const vacantProperties = useMemo(() => {
     return properties.filter((p) => p.property_status === 'ACTIVE' && !leasedPropertyIds.has(p.p_id));
   }, [properties, leasedPropertyIds]);
-
-  // 2. Financial Calculations
-  const totalMonthlyRentalIncome = useMemo(() => {
-    return activeRents.reduce((sum, r) => sum + (Number(r.rent_amount) || 0), 0);
-  }, [activeRents]);
-
-  const annualRentalIncome = totalMonthlyRentalIncome * 12;
-
-  const totalCostOfRentedProperties = useMemo(() => {
-    return activeRents.reduce((sum, r) => {
-      const prop = propertyMap.get(r.p_id);
-      return sum + (Number(prop?.purchase_price) || 0);
-    }, 0);
-  }, [activeRents, propertyMap]);
-
-  const portfolioRentalYield = useMemo(() => {
-    if (totalCostOfRentedProperties <= 0) return 0;
-    return (annualRentalIncome / totalCostOfRentedProperties) * 100;
-  }, [annualRentalIncome, totalCostOfRentedProperties]);
-
-  const totalRentCollectedToDate = useMemo(() => {
-    return allRentPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-  }, [allRentPayments]);
-
-  const overdueLeasesCount = useMemo(() => {
-    return activeRents.filter((r) => r.next_rent_due && r.next_rent_due < today).length;
-  }, [activeRents, today]);
 
   // Filtered active leases by search
   const filteredActiveRents = useMemo(() => {
@@ -141,7 +127,7 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
   const handleEndLease = async (rent: RentRecord, propName: string) => {
     if (
       window.confirm(
-        `End tenancy with tenant "${rent.tenant_name}" for property "${propName}"?\n\nThe lease history and rent collection records will remain preserved.`
+        `End tenancy with tenant "${rent.tenant_name}" for property "${propName}"?\n\nThe lease history and rent documents will remain preserved.`
       )
     ) {
       try {
@@ -153,86 +139,95 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
     }
   };
 
+  const handleQuickDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 8 * 1024 * 1024) {
+        setQuickDocError('Document exceeds 8MB limit');
+        return;
+      }
+      setQuickDocFileName(file.name);
+      setIsQuickDocUploading(true);
+      setQuickDocError('');
+      try {
+        const uploadedUrl = await uploadDocumentFile(file);
+        setQuickDocFileUrl(uploadedUrl);
+      } catch {
+        setQuickDocError('Failed to upload document file');
+      } finally {
+        setIsQuickDocUploading(false);
+      }
+    }
+  };
+
+  const handleQuickDocSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickDocModalRent) return;
+    setQuickDocError('');
+
+    const title = quickDocPreset === 'Other Document' ? quickDocCustomTitle.trim() : quickDocPreset.trim();
+    if (!title) {
+      setQuickDocError('Please provide a document title');
+      return;
+    }
+    if (!quickDocFileUrl && !quickDocFileName) {
+      setQuickDocError('Please select a file to upload');
+      return;
+    }
+
+    try {
+      const link = quickDocFileUrl || `/uploads/${Date.now()}_${quickDocFileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+      addDocument(quickDocModalRent.property.p_id, {
+        d_name: title,
+        d_link: link,
+        r_id: quickDocModalRent.rent.r_id,
+        d_category: 'RENT'
+      });
+
+      onShowToast(`Document "${title}" uploaded and attached!`, 'success');
+      setQuickDocModalRent(null);
+      setQuickDocPreset('Rent Agreement');
+      setQuickDocCustomTitle('');
+      setQuickDocFileName('');
+      setQuickDocFileUrl('');
+    } catch (err: any) {
+      setQuickDocError(err?.message || 'Failed to attach document');
+    }
+  };
+
+  const handleDeleteRentDoc = (d_id: string, docName: string) => {
+    if (window.confirm(`Delete document "${docName}"?`)) {
+      try {
+        removeDocument(d_id);
+        onShowToast(`Document "${docName}" deleted.`, 'info');
+      } catch (err: any) {
+        onShowToast(err?.message || 'Failed to delete document', 'warn');
+      }
+    }
+  };
+
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* 1. Four Rich Rental KPI Metric Cards */}
-      <div className="bullion-overview-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
-        {/* Card 1: Monthly Rental Income */}
-        <div className="bullion-overview-card" style={{ borderLeft: '4px solid #16A34A' }}>
-          <span className="bullion-overview-kicker" style={{ color: '#16A34A', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Wallet size={12} />
-            <span>Monthly Rental Income</span>
-          </span>
-          <div className="bullion-overview-value" style={{ color: '#065F46' }}>
-            <span style={{ fontSize: '20px', marginRight: '4px' }}>₹</span>
-            {formatCurrency(totalMonthlyRentalIncome)}
-            <span className="bullion-overview-unit" style={{ fontSize: '13px' }}>/mo</span>
-          </div>
-          <div className="bullion-overview-sub">
-            Run-rate: ₹ {formatCurrency(annualRentalIncome)} / year
-          </div>
-        </div>
-
-        {/* Card 2: Gross Portfolio Rental Yield */}
-        <div className="bullion-overview-card" style={{ borderLeft: '4px solid var(--color-gold)' }}>
-          <span className="bullion-overview-kicker" style={{ color: '#B58924', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <TrendingUp size={12} />
-            <span>Gross Rental Yield</span>
-          </span>
-          <div className="bullion-overview-value">
-            {portfolioRentalYield > 0 ? `${portfolioRentalYield.toFixed(1)}%` : '—'}
-            <span className="bullion-overview-unit" style={{ fontSize: '12px' }}>annual yield</span>
-          </div>
-          <div className="bullion-overview-sub">
-            On ₹ {formatCurrency(totalCostOfRentedProperties)} leased property value
-          </div>
-        </div>
-
-        {/* Card 3: Total Rent Collected */}
-        <div className="bullion-overview-card" style={{ borderLeft: '4px solid var(--color-navy)' }}>
-          <span className="bullion-overview-kicker" style={{ color: 'var(--color-navy)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Receipt size={12} />
-            <span>Total Rent Collected</span>
-          </span>
-          <div className="bullion-overview-value">
-            <span style={{ fontSize: '20px', marginRight: '4px' }}>₹</span>
-            {formatCurrency(totalRentCollectedToDate)}
-          </div>
-          <div className="bullion-overview-sub">
-            Across {allRentPayments.length} recorded payments
-          </div>
-        </div>
-
-        {/* Card 4: Tenancy & Occupancy */}
-        <div className="bullion-overview-card" style={{ borderLeft: '4px solid #3B82F6' }}>
-          <span className="bullion-overview-kicker" style={{ color: '#2563EB', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <KeyRound size={12} />
-            <span>Portfolio Occupancy</span>
-          </span>
-          <div className="bullion-overview-value">
-            {activeRents.length}
-            <span className="bullion-overview-unit" style={{ fontSize: '13px' }}>
-              / {properties.filter((p) => p.property_status === 'ACTIVE').length} Rented
-            </span>
-          </div>
-          <div className="bullion-overview-sub" style={{ color: overdueLeasesCount > 0 ? '#DC2626' : 'var(--color-charcoal-muted)' }}>
-            {overdueLeasesCount > 0 ? (
-              <strong>⚠️ {overdueLeasesCount} lease payment {overdueLeasesCount === 1 ? 'is' : 'are'} overdue</strong>
-            ) : (
-              <span>{vacantProperties.length} vacant property {vacantProperties.length === 1 ? 'available' : 'available'}</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Section Header & Quick Filter */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      {/* 1. Header & Controls Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
-            Active Leases &amp; Tenancies ({activeRents.length})
+          <h2 style={{ fontSize: '19px', fontWeight: 800, color: 'var(--color-navy)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>Rental Management</span>
+            <span
+              style={{
+                fontSize: '12px',
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: '12px',
+                background: 'rgba(22, 163, 74, 0.1)',
+                color: '#16A34A'
+              }}
+            >
+              {activeRents.length} {activeRents.length === 1 ? 'Rental' : 'Rentals'}
+            </span>
           </h2>
-          <p style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0' }}>
-            Track rent due dates, collect payments, and manage lease agreements
+          <p style={{ fontSize: '13px', color: 'var(--color-charcoal-muted)', margin: '3px 0 0' }}>
+            Track tenant details, monthly rent, property association, and rental documents
           </p>
         </div>
 
@@ -253,99 +248,110 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                 type="button"
                 className="bullion-search-clear-btn"
                 onClick={() => setSearch('')}
+                title="Clear search"
               >
                 <X size={12} />
               </button>
             )}
           </div>
 
-          {/* If vacant properties exist, provide quick Lease Property button */}
-          {vacantProperties.length > 0 && (
+          {/* Add Rent Details Button */}
+          {properties.length > 0 && (
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setPropertyToLease(vacantProperties[0])}
-              style={{ fontSize: '12px', padding: '6px 12px' }}
+              className="btn btn-primary btn-sm"
+              onClick={() => setIsGeneralAddModalOpen(true)}
+              style={{ background: 'var(--color-navy)', fontSize: '12px', padding: '7px 14px' }}
             >
-              <Plus size={13} style={{ marginRight: '4px' }} />
-              <span>Start New Lease</span>
+              <Plus size={14} style={{ marginRight: '4px' }} />
+              <span>Add Rent Details</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* 3. Active Leases Grid / Cards */}
+      {/* 2. Active Rentals Grid (Cards displaying only the 5 things + dates) */}
       {filteredActiveRents.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '18px' }}>
           {filteredActiveRents.map((rent) => {
             const prop = propertyMap.get(rent.p_id);
             if (!prop) return null;
 
-            const isDueOverdue = Boolean(rent.next_rent_due && rent.next_rent_due < today);
-            const isDueToday = Boolean(rent.next_rent_due && rent.next_rent_due === today);
-            const propPrice = Number(prop.purchase_price) || 0;
-            const singleYield = propPrice > 0 ? ((Number(rent.rent_amount) * 12) / propPrice) * 100 : 0;
-
-            // Total rent collected for this property
-            const rentPaymentsForThisProp = allRentPayments.filter(
-              (p) => (prop.a_id && p.a_id === prop.a_id) || p.p_id === prop.p_id
-            );
-            const propRentCollected = rentPaymentsForThisProp.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+            // Fetch attached rent documents
+            const rentDocs: DocumentRecord[] = getDocumentsForRent(prop.p_id, rent.r_id);
 
             return (
               <div
                 key={rent.r_id}
                 className="re-card"
                 style={{
-                  borderLeftColor: isDueOverdue ? '#DC2626' : '#16A34A',
+                  borderLeftColor: '#16A34A',
                   cursor: 'default',
-                  padding: '20px'
+                  padding: '20px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px'
                 }}
               >
-                {/* Header: Property Name + Type */}
+                {/* 3. Property Details: Linked Property Name & Location */}
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
                   <div>
-                    <h3
+                    <div
                       style={{
-                        margin: 0,
-                        fontSize: '16px',
-                        fontWeight: 800,
-                        color: 'var(--color-navy)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                         cursor: 'pointer'
                       }}
                       onClick={() => onSelectProperty(prop.p_id)}
                       title="Click to view property details"
                     >
-                      {prop.name}
-                    </h3>
-                    <span style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)' }}>
+                      <Building size={16} style={{ color: 'var(--color-navy)', flexShrink: 0 }} />
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: '16px',
+                          fontWeight: 800,
+                          color: 'var(--color-navy)',
+                          textDecoration: 'underline',
+                          textDecorationColor: 'transparent',
+                          transition: 'text-decoration-color 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.textDecorationColor = 'var(--color-navy)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.textDecorationColor = 'transparent')}
+                      >
+                        {prop.name}
+                      </h3>
+                    </div>
+                    <span style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', marginTop: '2px', display: 'block' }}>
                       {prop.location || 'Location not recorded'}
                     </span>
                   </div>
 
-                  <span
-                    className="bullion-status-pill"
-                    style={{
-                      background: 'rgba(22, 163, 74, 0.08)',
-                      borderColor: 'rgba(22, 163, 74, 0.25)',
-                      color: '#15803D',
-                      fontWeight: 700
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        background: '#16A34A',
-                        marginRight: '3px'
-                      }}
-                    />
-                    Active Lease
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setSelectedLeaseForEdit({ property: prop, rent })}
+                      style={{ fontSize: '11px', padding: '4px 8px' }}
+                      title="Edit Rent Details"
+                    >
+                      <Edit3 size={12} style={{ marginRight: '3px' }} />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-subtle btn-sm"
+                      onClick={() => handleEndLease(rent, prop.name)}
+                      style={{ fontSize: '11px', color: '#DC2626', padding: '4px 6px' }}
+                      title="End Tenancy"
+                    >
+                      End
+                    </button>
+                  </div>
                 </div>
 
-                {/* Tenant Box */}
+                {/* 1, 2, 4. Tenant Details & Monthly Rent */}
                 <div
                   style={{
                     display: 'flex',
@@ -357,6 +363,7 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                     border: '1px solid var(--border-light)'
                   }}
                 >
+                  {/* 1 & 2: Tenant Name & Contact Number */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div
                       style={{
@@ -369,10 +376,11 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontWeight: 700,
-                        fontSize: '14px'
+                        fontSize: '14px',
+                        flexShrink: 0
                       }}
                     >
-                      {rent.tenant_name.charAt(0).toUpperCase()}
+                      {rent.tenant_name ? rent.tenant_name.charAt(0).toUpperCase() : 'T'}
                     </div>
                     <div>
                       <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-navy)' }}>
@@ -397,129 +405,169 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                         </a>
                       ) : (
                         <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)' }}>
-                          No contact phone
+                          No contact number
                         </span>
                       )}
                     </div>
                   </div>
 
+                  {/* 4: Monthly Rent */}
                   <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-charcoal-muted)', letterSpacing: '0.05em' }}>
+                    <span style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-charcoal-muted)', letterSpacing: '0.05em', display: 'block' }}>
                       Monthly Rent
                     </span>
                     <div style={{ fontSize: '17px', fontWeight: 800, color: '#065F46' }}>
                       ₹ {formatCurrency(Number(rent.rent_amount))}
+                      <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--color-charcoal-muted)', marginLeft: '2px' }}>/mo</span>
                     </div>
-                    {singleYield > 0 && (
-                      <span style={{ fontSize: '10px', color: '#B58924', fontWeight: 600 }}>
-                        {singleYield.toFixed(1)}% yield
-                      </span>
-                    )}
                   </div>
                 </div>
 
-                {/* Due Date & Lease Period */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--color-charcoal-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Calendar size={12} />
-                      <span>Lease Period:</span>
-                    </span>
-                    <span style={{ fontWeight: 600, color: 'var(--color-charcoal-dark)' }}>
-                      {formatDate(rent.rent_start_date)} – {rent.rent_end_date ? formatDate(rent.rent_end_date) : 'Ongoing'}
-                    </span>
+                {/* 6 & 7. Rent Start Date & Rent End Date (Optional) */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-charcoal-dark)' }}>
+                    <Calendar size={13} style={{ color: 'var(--color-charcoal-muted)' }} />
+                    <span style={{ color: 'var(--color-charcoal-muted)' }}>Rent Start Date:</span>
+                    <strong style={{ fontWeight: 600 }}>{formatDate(rent.rent_start_date)}</strong>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--color-charcoal-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <Clock size={12} />
-                      <span>Next Rent Due:</span>
-                    </span>
-                    {rent.next_rent_due ? (
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          background: isDueOverdue
-                            ? 'rgba(220, 38, 38, 0.1)'
-                            : isDueToday
-                            ? 'rgba(217, 119, 6, 0.1)'
-                            : 'rgba(22, 163, 74, 0.1)',
-                          color: isDueOverdue ? '#DC2626' : isDueToday ? '#D97706' : '#15803D'
-                        }}
-                      >
-                        {formatDate(rent.next_rent_due)} {isDueOverdue ? '• Overdue' : isDueToday ? '• Due Today' : ''}
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--color-charcoal-muted)' }}>Not set</span>
-                    )}
-                  </div>
-
-                  {propRentCollected > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid var(--border-light)', paddingTop: '6px' }}>
-                      <span style={{ color: 'var(--color-charcoal-muted)' }}>Total Collected:</span>
-                      <span style={{ fontWeight: 700, color: '#065F46' }}>
-                        ₹ {formatCurrency(propRentCollected)}
-                      </span>
+                  {rent.rent_end_date && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--color-charcoal-dark)' }}>
+                      <span style={{ color: 'var(--color-charcoal-muted)' }}>End Date:</span>
+                      <strong style={{ fontWeight: 600, color: '#D97706' }}>{formatDate(rent.rent_end_date)}</strong>
                     </div>
                   )}
                 </div>
 
-                {/* Workflow Action Buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px', borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    onClick={() => setSelectedLeaseForCollection({ property: prop, rent })}
-                    style={{
-                      background: '#16A34A',
-                      borderColor: '#16A34A',
-                      flex: 1,
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                      padding: '6px 12px'
-                    }}
-                  >
-                    <Wallet size={13} style={{ marginRight: '4px' }} />
-                    <span>Collect Rent</span>
-                  </button>
+                {/* 5. Rent Documents Section */}
+                <div
+                  style={{
+                    borderTop: '1px solid var(--border-light)',
+                    paddingTop: '10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: 'var(--color-charcoal-muted)', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <FileText size={12} />
+                      <span>Rent Documents ({rentDocs.length})</span>
+                    </span>
 
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => setSelectedLeaseForEdit({ property: prop, rent })}
-                    style={{ fontSize: '12px', padding: '6px 10px' }}
-                    title="Edit Lease Details"
-                  >
-                    <Edit3 size={13} />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickDocModalRent({ property: prop, rent })}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-navy)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '2px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                      title="Upload Rent Document"
+                    >
+                      <Plus size={12} />
+                      <span>Upload</span>
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    className="btn btn-subtle btn-sm"
-                    onClick={() => handleEndLease(rent, prop.name)}
-                    style={{ fontSize: '11px', color: '#DC2626', padding: '6px 8px' }}
-                    title="End Tenancy"
-                  >
-                    End Lease
-                  </button>
+                  {rentDocs.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {rentDocs.map((doc) => (
+                        <div
+                          key={doc.d_id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '4px 8px',
+                            background: 'var(--bg-surface-soft)',
+                            borderRadius: '4px',
+                            fontSize: '11px'
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: 'var(--color-navy)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: '220px'
+                            }}
+                            title={doc.d_name}
+                          >
+                            {doc.d_name}
+                          </span>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {doc.d_link && (
+                              <a
+                                href={doc.d_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px',
+                                  color: '#2563EB',
+                                  textDecoration: 'none',
+                                  fontSize: '11px',
+                                  fontWeight: 600
+                                }}
+                                title="View document"
+                              >
+                                <ExternalLink size={11} />
+                                <span>View</span>
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRentDoc(doc.d_id, doc.d_name)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: 'var(--color-charcoal-muted)',
+                                cursor: 'pointer',
+                                padding: '1px'
+                              }}
+                              title="Delete document"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', fontStyle: 'italic' }}>
+                      No rent documents attached
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="bullion-empty-state-card" style={{ padding: '40px 24px', textAlign: 'center' }}>
+        /* Empty state when no active leases match search or exist */
+        <div className="bullion-empty-state-card" style={{ padding: '36px 24px', textAlign: 'center' }}>
           <div className="bullion-empty-state-icon" style={{ background: 'rgba(22, 163, 74, 0.1)', color: '#16A34A' }}>
             <KeyRound size={28} />
           </div>
-          <h3 className="bullion-empty-state-title">No Active Leases Found</h3>
+          <h3 className="bullion-empty-state-title">
+            {search ? 'No Matching Rentals Found' : 'No Rental Information'}
+          </h3>
           <p className="bullion-empty-state-sub" style={{ maxWidth: '440px', margin: '8px auto 20px' }}>
             {search
-              ? `No active leases match your search query "${search}".`
-              : 'You have not leased out any properties yet. Put an active property on rent to start tracking monthly cash flows.'}
+              ? `No rental details match your search query "${search}".`
+              : 'None of your properties currently have rental details recorded. Add rent details to track tenants and rent documents.'}
           </p>
           {vacantProperties.length > 0 && !search && (
             <button
@@ -529,27 +577,27 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
               style={{ background: 'var(--color-navy)' }}
             >
               <Plus size={15} style={{ marginRight: '6px' }} />
-              Lease a Property
+              Add Rent Details
             </button>
           )}
         </div>
       )}
 
-      {/* 4. Vacant Properties ("Available to Lease") Section */}
+      {/* 3. Properties Without Rental Information Section */}
       {vacantProperties.length > 0 && (
-        <div style={{ marginTop: '12px', background: 'var(--bg-surface)', padding: '20px 24px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+        <div style={{ marginTop: '8px', background: 'var(--bg-surface)', padding: '20px 24px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
-                Vacant Properties Available for Rent ({vacantProperties.length})
+                Properties Without Rental Information ({vacantProperties.length})
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0' }}>
-                Active properties not currently generating rental income
+                Active properties ready to add tenant and rent details
               </p>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
             {vacantProperties.map((p) => (
               <div
                 key={p.p_id}
@@ -560,15 +608,25 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                   padding: '12px 14px',
                   borderRadius: '8px',
                   border: '1px solid var(--border-light)',
-                  background: 'var(--bg-surface-soft)'
+                  background: 'var(--bg-surface-soft)',
+                  gap: '10px'
                 }}
               >
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--color-navy)' }}>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: '14px',
+                      color: 'var(--color-navy)',
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => onSelectProperty(p.p_id)}
+                    title="Click to view property details"
+                  >
                     {p.name}
                   </div>
                   <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', marginTop: '2px' }}>
-                    {p.location || 'Location unrecorded'} • ₹ {formatCurrency(Number(p.purchase_price) || 0)}
+                    {p.location || 'Location unrecorded'} • No rental info
                   </div>
                 </div>
 
@@ -576,119 +634,15 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => setPropertyToLease(p)}
-                  style={{ fontSize: '11px', padding: '4px 10px', color: '#16A34A', borderColor: '#16A34A' }}
+                  style={{ fontSize: '11px', padding: '5px 10px', color: '#16A34A', borderColor: '#16A34A', flexShrink: 0 }}
                 >
                   <KeyRound size={12} style={{ marginRight: '4px' }} />
-                  Start Lease
+                  Add Rent Details
                 </button>
               </div>
             ))}
           </div>
         </div>
-      )}
-
-      {/* 5. Rent Collections History Ledger */}
-      {allRentPayments.length > 0 && (
-        <div style={{ background: 'var(--bg-surface)', padding: '20px 24px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
-                Rent Payment Ledger ({allRentPayments.length})
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0' }}>
-                Chronological record of all rent receipts recorded in the vault
-              </p>
-            </div>
-            <span style={{ fontSize: '13px', fontWeight: 800, color: '#065F46' }}>
-              Total: ₹ {formatCurrency(totalRentCollectedToDate)}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {allRentPayments.map((payment) => {
-              const prop = properties.find((p) => p.a_id === payment.a_id || p.p_id === payment.p_id);
-              return (
-                <div
-                  key={payment.payment_id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-light)',
-                    background: 'var(--bg-surface-soft)',
-                    fontSize: '13px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div
-                      style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '6px',
-                        background: 'rgba(22, 163, 74, 0.1)',
-                        color: '#16A34A',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Receipt size={16} />
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 700, color: 'var(--color-navy)' }}>
-                        {prop?.name || 'Rented Property'}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', marginTop: '1px' }}>
-                        {payment.payment_date ? formatDate(payment.payment_date) : 'Date unrecorded'}
-                        {payment.notes ? ` • ${payment.notes}` : ''}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, fontSize: '14px', color: '#065F46' }}>
-                      + ₹ {formatCurrency(payment.amount)}
-                    </div>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '1px 6px',
-                        borderRadius: '4px',
-                        background: 'rgba(22, 163, 74, 0.1)',
-                        color: '#15803D',
-                        display: 'inline-block',
-                        marginTop: '2px'
-                      }}
-                    >
-                      RECEIVED
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Collect Rent Modal */}
-      {selectedLeaseForCollection && (
-        <CollectRentModal
-          isOpen={Boolean(selectedLeaseForCollection)}
-          onClose={() => setSelectedLeaseForCollection(null)}
-          property={selectedLeaseForCollection.property}
-          activeRent={selectedLeaseForCollection.rent}
-          onRecordPayment={async (payload) => {
-            await onRecordRentPayment(selectedLeaseForCollection.property.p_id, {
-              ...payload,
-              r_id: selectedLeaseForCollection.rent.r_id
-            });
-            setSelectedLeaseForCollection(null);
-          }}
-          onShowToast={onShowToast}
-        />
       )}
 
       {/* Edit Rent Modal */}
@@ -698,6 +652,7 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
           onClose={() => setSelectedLeaseForEdit(null)}
           property={selectedLeaseForEdit.property}
           activeRent={selectedLeaseForEdit.rent}
+          properties={properties.filter((p) => p.property_status === 'ACTIVE')}
           onSaveRent={async (updates) => {
             await onUpdateRent(selectedLeaseForEdit.rent.r_id, updates);
           }}
@@ -705,17 +660,164 @@ export const RealEstateRentSection: React.FC<RealEstateRentSectionProps> = ({
         />
       )}
 
-      {/* Start Rent Modal (for vacant property) */}
+      {/* Start Rent Modal (opened for a specific vacant property) */}
       {propertyToLease && (
         <StartRentModal
           isOpen={Boolean(propertyToLease)}
           onClose={() => setPropertyToLease(null)}
           property={propertyToLease}
+          properties={properties.filter((p) => p.property_status === 'ACTIVE')}
           onStartRent={async (rentPayload) => {
-            await onStartRent(propertyToLease.p_id, rentPayload);
+            const targetPid = rentPayload.p_id || propertyToLease.p_id;
+            await onStartRent(targetPid, rentPayload);
             setPropertyToLease(null);
           }}
+          onShowToast={onShowToast}
         />
+      )}
+
+      {/* Add Rent Modal (opened via top header button) */}
+      {isGeneralAddModalOpen && (
+        <StartRentModal
+          isOpen={isGeneralAddModalOpen}
+          onClose={() => setIsGeneralAddModalOpen(false)}
+          property={vacantProperties[0] || properties[0] || null}
+          properties={properties.filter((p) => p.property_status === 'ACTIVE')}
+          onStartRent={async (rentPayload) => {
+            const targetPid = rentPayload.p_id || (vacantProperties[0]?.p_id || properties[0]?.p_id);
+            if (targetPid) {
+              await onStartRent(targetPid, rentPayload);
+            }
+            setIsGeneralAddModalOpen(false);
+          }}
+          onShowToast={onShowToast}
+        />
+      )}
+
+      {/* Quick Upload Document Modal */}
+      {quickDocModalRent && (
+        <div className="modal-overlay bullion-modal-overlay fade-in" onClick={() => setQuickDocModalRent(null)} role="dialog" aria-modal="true">
+          <div
+            className="modal-content-box bullion-modal-box"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '440px' }}
+          >
+            <div className="bullion-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} style={{ color: 'var(--color-navy)' }} />
+                <div>
+                  <h3 className="bullion-modal-title" style={{ fontSize: '16px' }}>Upload Rent Document</h3>
+                  <span className="bullion-modal-sub">
+                    {quickDocModalRent.property.name} • {quickDocModalRent.rent.tenant_name}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="bullion-modal-close-btn"
+                onClick={() => setQuickDocModalRent(null)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickDocSubmit} className="bullion-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {quickDocError && (
+                <div className="bullion-modal-error-box">
+                  <AlertCircle size={14} />
+                  <span>{quickDocError}</span>
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Document Type <span className="text-required">*</span></label>
+                <select
+                  className="form-input"
+                  value={quickDocPreset}
+                  onChange={(e) => setQuickDocPreset(e.target.value)}
+                >
+                  <option value="Rent Agreement">Rent Agreement</option>
+                  <option value="Tenant ID Proof (Aadhaar / Passport)">Tenant ID Proof</option>
+                  <option value="Police Verification">Police Verification</option>
+                  <option value="Deposit Receipt">Deposit Receipt</option>
+                  <option value="Other Document">Other Document</option>
+                </select>
+              </div>
+
+              {quickDocPreset === 'Other Document' && (
+                <div className="form-group">
+                  <label className="form-label">Document Title <span className="text-required">*</span></label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Electricity Bill Receipt"
+                    value={quickDocCustomTitle}
+                    onChange={(e) => setQuickDocCustomTitle(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="form-group">
+                <label className="form-label">Select File <span className="text-required">*</span></label>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '12px',
+                    border: '1px dashed var(--border-card)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    background: 'var(--bg-surface-soft)',
+                    fontSize: '13px',
+                    color: 'var(--color-navy)'
+                  }}
+                >
+                  {isQuickDocUploading ? (
+                    <>
+                      <Loader2 size={16} className="spin" />
+                      <span>Uploading file...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={16} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '240px' }}>
+                        {quickDocFileName || 'Choose File (PDF, image, doc)'}
+                      </span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleQuickDocUpload}
+                    disabled={isQuickDocUploading}
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                  />
+                </label>
+              </div>
+
+              <div className="bullion-modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '6px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setQuickDocModalRent(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={isQuickDocUploading || (!quickDocFileUrl && !quickDocFileName)}
+                  style={{ background: '#16A34A', borderColor: '#16A34A' }}
+                >
+                  Save Document
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

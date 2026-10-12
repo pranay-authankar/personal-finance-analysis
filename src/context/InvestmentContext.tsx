@@ -120,8 +120,9 @@ interface InvestmentContextType {
       rent_amount: number;
       rent_start_date: string;
       rent_end_date?: string;
-      next_rent_due: string;
+      next_rent_due?: string;
       r_notes?: string;
+      documents?: { d_name: string; d_link: string }[];
     },
     documents?: { d_name: string; d_link: string }[]
   ) => Promise<RentRecord>;
@@ -146,6 +147,7 @@ interface InvestmentContextType {
   getAllRentPayments: () => PaymentRecord[];
   getActiveRentForProperty: (p_id: string) => RentRecord | undefined;
   getRentsForProperty: (p_id: string) => RentRecord[];
+  getDocumentsForRent: (p_id: string, r_id?: string) => DocumentRecord[];
 
   sellProperty: (
     p_id: string,
@@ -1406,6 +1408,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const deleteProperty = (p_id: string) => {
     csvDb.deleteProperty(p_id);
+    csvDb.deleteRentsForProperty(p_id);
     bumpRevision();
   };
 
@@ -1431,8 +1434,9 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       rent_amount: number;
       rent_start_date: string;
       rent_end_date?: string;
-      next_rent_due: string;
+      next_rent_due?: string;
       r_notes?: string;
+      documents?: { d_name: string; d_link: string }[];
     },
     documents?: { d_name: string; d_link: string }[]
   ): Promise<RentRecord> => {
@@ -1489,8 +1493,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       throw new Error(`Rent record ${r_id} not found.`);
     }
 
+    const targetPid = updates.p_id !== undefined ? updates.p_id : existing.p_id;
+
     const updated: RentRecord = {
       ...existing,
+      p_id: targetPid,
       tenant_name: updates.tenant_name !== undefined ? updates.tenant_name.trim() : existing.tenant_name,
       tenant_contact: updates.tenant_contact !== undefined ? updates.tenant_contact.trim() : existing.tenant_contact,
       rent_amount: updates.rent_amount !== undefined ? Number(updates.rent_amount) || 0 : existing.rent_amount,
@@ -1625,13 +1632,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // 1. Update status to SOLD in assets.csv
     csvDb.updateAsset(a_id, { asset_status: 'SOLD' });
 
-    // 2. Close active rent if any
-    const activeRent = csvDb.getActiveRentForProperty(p_id, now);
-    if (activeRent) {
-      csvDb.updateRent(activeRent.r_id, {
-        rent_end_date: saleData.sale_date || todayStr
-      });
-    }
+    // 2. Delete the rent history of the property which is being sold
+    csvDb.deleteRentsForProperty(p_id);
 
     // 3. Add to asset_sales.csv
     const sale_id = `sale_${Date.now()}`;
@@ -1788,6 +1790,10 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const getDocumentsForProperty = (p_id: string): DocumentRecord[] => {
     return csvDb.getDocumentsForProperty(p_id);
+  };
+
+  const getDocumentsForRent = (p_id: string, r_id?: string): DocumentRecord[] => {
+    return csvDb.getDocumentsForRent(p_id, r_id);
   };
 
   const calculatePropertyFinances = (p_id: string) => {
@@ -2173,6 +2179,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addDocument,
         removeDocument,
         getDocumentsForProperty,
+        getDocumentsForRent,
         calculatePropertyFinances,
         addOrUpdateRealizedFund,
         deleteRealizedFund,

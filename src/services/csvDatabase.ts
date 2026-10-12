@@ -562,16 +562,39 @@ export class CsvDatabaseService {
   }
 
   public async updateRent(r_id: string, updates: Partial<RentRecord>): Promise<void> {
+    const existing = this.rents.find((r) => r.r_id === r_id);
     this.rents = this.rents.map((r) => {
       if (r.r_id !== r_id) return r;
       return { ...r, ...updates };
     });
     await this.persistTable('rents', this.rents, RENTS_COLUMNS);
+
+    // If property association changed, update linked documents
+    if (existing && updates.p_id && updates.p_id !== existing.p_id) {
+      const newProp = this.properties.find((p) => p.p_id === updates.p_id);
+      if (newProp) {
+        this.documents = this.documents.map((d) =>
+          d.r_id === r_id ? { ...d, p_id: newProp.p_id, a_id: newProp.a_id } : d
+        );
+        await this.persistTable('documents', this.documents, DOCUMENTS_COLUMNS);
+      }
+    }
   }
 
   public async deleteRent(r_id: string): Promise<void> {
     this.rents = this.rents.filter((r) => r.r_id !== r_id);
     await this.persistTable('rents', this.rents, RENTS_COLUMNS);
+  }
+
+  public async deleteRentsForProperty(p_id: string): Promise<void> {
+    const rentIdsToDelete = new Set(this.rents.filter((r) => r.p_id === p_id).map((r) => r.r_id));
+    this.rents = this.rents.filter((r) => r.p_id !== p_id);
+    await this.persistTable('rents', this.rents, RENTS_COLUMNS);
+
+    if (rentIdsToDelete.size > 0) {
+      this.documents = this.documents.filter((d) => !d.r_id || !rentIdsToDelete.has(d.r_id));
+      await this.persistTable('documents', this.documents, DOCUMENTS_COLUMNS);
+    }
   }
 
   public async startRent(
@@ -582,7 +605,7 @@ export class CsvDatabaseService {
       rent_amount: number;
       rent_start_date: string;
       rent_end_date?: string;
-      next_rent_due: string;
+      next_rent_due?: string;
       r_notes?: string;
     },
     documents?: { d_name: string; d_link: string }[]
@@ -596,7 +619,7 @@ export class CsvDatabaseService {
       rent_amount: Number(payload.rent_amount) || 0,
       rent_start_date: payload.rent_start_date,
       rent_end_date: payload.rent_end_date || '',
-      next_rent_due: payload.next_rent_due,
+      next_rent_due: payload.next_rent_due || '',
       r_notes: payload.r_notes?.trim() || ''
     };
 
@@ -612,7 +635,7 @@ export class CsvDatabaseService {
         r_id,
         d_name: doc.d_name,
         d_link: doc.d_link,
-        d_category: 'RENTAL'
+        d_category: 'RENT'
       }));
       await this.addDocuments(newDocs);
     }
@@ -939,11 +962,12 @@ export class CsvDatabaseService {
   public getDocumentsForRent(p_id: string, r_id?: string): DocumentRecord[] {
     const prop = this.properties.find((p) => p.p_id === p_id);
     const a_id = prop?.a_id;
-    return this.documents.filter(
-      (d) =>
-        (a_id && d.a_id === a_id && d.d_category === 'RENT') ||
-        (r_id && d.r_id === r_id)
-    );
+    return this.documents.filter((d) => {
+      if (r_id && d.r_id === r_id) return true;
+      const isRentCategory = d.d_category === 'RENT' || d.d_category === 'RENTAL';
+      if (!isRentCategory) return false;
+      return d.p_id === p_id || (Boolean(a_id) && d.a_id === a_id);
+    });
   }
 
   public getDocumentsForFd(fd_id: string): DocumentRecord[] {

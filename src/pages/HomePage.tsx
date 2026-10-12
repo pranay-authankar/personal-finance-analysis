@@ -69,13 +69,6 @@ export const HomePage: React.FC = () => {
       }
     });
 
-    (activeMember.rents || []).forEach((r) => {
-      if (r.next_rent_due && Number(r.rent_amount) > 0) {
-        total += Number(r.rent_amount);
-        count++;
-      }
-    });
-
     return { totalReceivables: total, receivablesCount: count };
   }, [activeMember, calculatePropertyFinances, midnightTicker, now]);
 
@@ -255,24 +248,6 @@ export const HomePage: React.FC = () => {
             date: fin.nextDueDate,
             amount: fin.saleReceivableLeft,
             route: `/real-estate/${p.p_id}`,
-            badge
-          });
-        }
-      }
-    });
-
-    // Rents
-    (activeMember.rents || []).forEach((r) => {
-      if (r.next_rent_due && Number(r.rent_amount) > 0) {
-        const badge = getDeadlineClassification(r.next_rent_due, now);
-        if (badge) {
-          events.push({
-            id: `rent_${r.r_id}`,
-            title: `Rent: ${r.tenant_name}`,
-            category: 'Real Estate',
-            date: r.next_rent_due,
-            amount: Number(r.rent_amount),
-            route: `/real-estate/${r.p_id}`,
             badge
           });
         }

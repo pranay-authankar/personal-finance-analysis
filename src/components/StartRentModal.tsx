@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import type { PropertyRecord } from '../types';
-import { formatCurrency } from '../utils/calculations';
 import { getLocalDateString } from '../utils/dateUtils';
-import { X, KeyRound, AlertCircle, Info, Check, Plus, Trash2, FileText, Upload, Loader2 } from 'lucide-react';
+import { X, KeyRound, AlertCircle, Check, Plus, Trash2, FileText, Upload, Loader2, Building } from 'lucide-react';
 import { uploadDocumentFile } from '../utils/fileUpload';
 
 interface RentDocInput {
@@ -13,52 +12,55 @@ interface RentDocInput {
 interface StartRentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  property: PropertyRecord;
+  property?: PropertyRecord | null;
+  properties?: PropertyRecord[];
   onStartRent: (payload: {
     tenant_name: string;
     tenant_contact: string;
     rent_amount: number;
     rent_start_date: string;
     rent_end_date?: string;
-    next_rent_due: string;
-    r_notes?: string;
+    p_id?: string;
     documents?: { d_name: string; d_link: string }[];
-  }) => void;
+  }) => void | Promise<void>;
+  onShowToast?: (msg: string, type?: 'success' | 'info' | 'warn') => void;
 }
 
 export const StartRentModal: React.FC<StartRentModalProps> = ({
   isOpen,
   onClose,
   property,
-  onStartRent
+  properties = [],
+  onStartRent,
+  onShowToast
 }) => {
+  // Available active properties
+  const activePropertyList = properties.length > 0
+    ? properties
+    : (property ? [property] : []);
+
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>(() => {
+    return property?.p_id || (activePropertyList[0]?.p_id || '');
+  });
+
   const [tenantName, setTenantName] = useState<string>('');
   const [tenantContact, setTenantContact] = useState<string>('');
   const [rentAmount, setRentAmount] = useState<string>('');
-  const [startDate, setStartDate] = useState<string>(
-    getLocalDateString()
-  );
-  const [endDate, setEndDate] = useState<string>(() => {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() + 1);
-    return getLocalDateString(d);
-  });
-  const [nextRentDueDate, setNextRentDueDate] = useState<string>(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 1);
-    d.setDate(1);
-    return getLocalDateString(d);
-  });
-  const [notes, setNotes] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>(getLocalDateString());
+  const [endDate, setEndDate] = useState<string>('');
+
   const [documents, setDocuments] = useState<RentDocInput[]>([]);
   const [docTypePreset, setDocTypePreset] = useState<string>('Rent Agreement');
   const [customDocName, setCustomDocName] = useState<string>('');
   const [docFileUrl, setDocFileUrl] = useState<string>('');
   const [docFileName, setDocFileName] = useState<string>('');
   const [isUploadingDoc, setIsUploadingDoc] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
   if (!isOpen) return null;
+
+  const currentSelectedProp = activePropertyList.find((p) => p.p_id === selectedPropertyId) || property;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -113,52 +115,72 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
     setDocuments(documents.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const rentNum = Number(rentAmount);
-    if (!tenantName.trim()) {
+    setError('');
+
+    const targetPid = selectedPropertyId || property?.p_id;
+    if (!targetPid) {
+      setError('Please select a property for this rental');
+      return;
+    }
+
+    const trimmedTenant = tenantName.trim();
+    if (!trimmedTenant) {
       setError('Please provide tenant name');
       return;
     }
+
+    const rentNum = Number(rentAmount);
     if (!rentAmount || isNaN(rentNum) || rentNum <= 0) {
       setError('Please enter a valid monthly rent amount in ₹');
       return;
     }
-    if (!nextRentDueDate) {
-      setError('Please specify the next expected rent due date');
+
+    if (!startDate) {
+      setError('Please provide the rent start date');
       return;
     }
+
     if (isUploadingDoc) {
       setError('Please wait for the document file to finish uploading');
       return;
     }
 
-    // Auto-include any document currently in the upload box
+    // Auto-include any document currently staged in the upload inputs
     const finalDocs = [...documents];
     if (docFileUrl || docFileName) {
       const pendingTitle = docTypePreset === 'Other Document' ? customDocName.trim() : docTypePreset.trim();
-      if (!pendingTitle) {
-        setError('Please specify the document name for the uploaded document');
-        return;
+      if (pendingTitle) {
+        finalDocs.push({
+          d_name: pendingTitle,
+          d_link: docFileUrl || `/uploads/${Date.now()}_${docFileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+        });
       }
-      finalDocs.push({
-        d_name: pendingTitle,
-        d_link: docFileUrl || `/uploads/${Date.now()}_${docFileName.replace(/[^a-zA-Z0-9.-]/g, '_')}`
-      });
     }
 
-    onStartRent({
-      tenant_name: tenantName.trim(),
-      tenant_contact: tenantContact.trim(),
-      rent_amount: rentNum,
-      rent_start_date: startDate,
-      rent_end_date: endDate || undefined,
-      next_rent_due: nextRentDueDate,
-      r_notes: notes.trim() || undefined,
-      documents: finalDocs.length > 0 ? finalDocs : undefined
-    });
+    setIsSubmitting(true);
+    try {
+      await onStartRent({
+        p_id: targetPid,
+        tenant_name: trimmedTenant,
+        tenant_contact: tenantContact.trim(),
+        rent_amount: rentNum,
+        rent_start_date: startDate,
+        rent_end_date: endDate || undefined,
+        documents: finalDocs.length > 0 ? finalDocs : undefined
+      });
 
-    onClose();
+      if (onShowToast) {
+        onShowToast(`Rental details added for "${trimmedTenant}"!`, 'success');
+      }
+      onClose();
+    } catch (err: any) {
+      console.error('Failed to start rent:', err);
+      setError(err?.message || 'Failed to save rent details. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -188,10 +210,10 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
             </div>
             <div>
               <h2 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
-                Start Renting Property
+                Add Rent Details
               </h2>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {property.name}
+                {currentSelectedProp?.name || 'Link rental to a property'}
               </span>
             </div>
           </div>
@@ -199,107 +221,124 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
             type="button"
             className="btn btn-subtle btn-sm"
             onClick={onClose}
-            style={{ padding: '6px' }}
+            aria-label="Close"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* Note on rental income */}
-        <div
-          style={{
-            background: '#FEF3C7',
-            border: '1px solid #FDE68A',
-            borderRadius: 'var(--radius-md)',
-            padding: '10px 12px',
-            marginBottom: '16px',
-            fontSize: '12px',
-            color: '#92400E',
-            lineHeight: 1.4
-          }}
-        >
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', fontWeight: 600 }}>
-            <Info size={14} />
-            <span>Rental Income Isolation</span>
-          </div>
-          <div style={{ marginTop: '2px' }}>
-            Rental income goes directly to your bank account and is NOT added to the Real Estate investment capital.
-          </div>
-        </div>
-
         {error && (
-          <div className="alert-danger" style={{ marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <AlertCircle size={14} />
+          <div className="alert alert-error" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertCircle size={16} />
             <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          {/* Tenant Name & Contact */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '12px' }}>
-            <div>
-              <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-                Tenant Name *
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* 3. Property Association */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="rentPropertySelect">
+              Property Details <span className="text-required">*</span>
+            </label>
+            {activePropertyList.length > 1 ? (
+              <select
+                id="rentPropertySelect"
+                className="form-input"
+                value={selectedPropertyId}
+                onChange={(e) => setSelectedPropertyId(e.target.value)}
+                required
+              >
+                {activePropertyList.map((p) => (
+                  <option key={p.p_id} value={p.p_id}>
+                    {p.name} {p.location ? `— ${p.location}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  background: 'var(--bg-surface-soft)',
+                  border: '1px solid var(--border-light)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--color-navy)'
+                }}
+              >
+                <Building size={15} style={{ color: 'var(--color-charcoal-muted)' }} />
+                <span>{currentSelectedProp?.name || 'Selected Property'}</span>
+                {currentSelectedProp?.location && (
+                  <span style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', fontWeight: 400 }}>
+                    ({currentSelectedProp.location})
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 1 & 2. Tenant Name & Tenant Contact Number */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="form-group">
+              <label className="form-label" htmlFor="tenantName">
+                Tenant Name <span className="text-required">*</span>
               </label>
               <input
+                id="tenantName"
                 type="text"
                 className="form-input"
+                placeholder="e.g. Rahul Sharma"
                 value={tenantName}
-                onChange={(e) => {
-                  setTenantName(e.target.value);
-                  setError('');
-                }}
-                placeholder="e.g. Ramesh Verma"
+                onChange={(e) => setTenantName(e.target.value)}
                 required
                 autoFocus
               />
             </div>
 
-            <div>
-              <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-                Tenant Contact
+            <div className="form-group">
+              <label className="form-label" htmlFor="tenantContact">
+                Tenant Contact Number <span className="text-optional">(Optional)</span>
               </label>
               <input
+                id="tenantContact"
                 type="text"
                 className="form-input"
+                placeholder="e.g. +91 98765 43210"
                 value={tenantContact}
                 onChange={(e) => setTenantContact(e.target.value)}
-                placeholder="+91 98765 43210"
               />
             </div>
           </div>
 
-          {/* Monthly Rent */}
-          <div>
-            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-              Monthly Rent Amount (₹) *
+          {/* 4. Monthly Rent */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="rentAmount">
+              Monthly Rent (₹) <span className="text-required">*</span>
             </label>
             <input
+              id="rentAmount"
               type="number"
-              className="form-input"
-              value={rentAmount}
-              onChange={(e) => {
-                setRentAmount(e.target.value);
-                setError('');
-              }}
-              placeholder="e.g. 35000"
-              required
               min="1"
+              step="any"
+              className="form-input"
+              placeholder="e.g. 20000"
+              value={rentAmount}
+              onChange={(e) => setRentAmount(e.target.value)}
+              required
             />
-            {Number(rentAmount) > 0 && (
-              <span style={{ fontSize: '11px', color: '#B45309', display: 'block', marginTop: '3px', fontWeight: 600 }}>
-                ₹ {formatCurrency(Number(rentAmount))} / month
-              </span>
-            )}
           </div>
 
-          {/* Start Date & End Date */}
+          {/* 6 & 7. Rent Start Date & Rent End Date (Optional) */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-                Rent Start Date *
+            <div className="form-group">
+              <label className="form-label" htmlFor="rentStartDate">
+                Rent Start Date <span className="text-required">*</span>
               </label>
               <input
+                id="rentStartDate"
                 type="date"
                 className="form-input"
                 value={startDate}
@@ -308,53 +347,43 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
               />
             </div>
 
-            <div>
-              <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-                Rent End Date
+            <div className="form-group">
+              <label className="form-label" htmlFor="rentEndDate">
+                Rent End Date <span className="text-optional">(Optional)</span>
               </label>
               <input
+                id="rentEndDate"
                 type="date"
                 className="form-input"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                placeholder="Only when leaving"
               />
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
+                Only when leaving / lease ends
+              </span>
             </div>
           </div>
 
-          {/* Next Rent Due Date */}
-          <div>
-            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-              Next Rent Due Date *
-            </label>
-            <input
-              type="date"
-              className="form-input"
-              value={nextRentDueDate}
-              onChange={(e) => setNextRentDueDate(e.target.value)}
-              required
-            />
-          </div>
+          {/* 5. Rent Documents Section */}
+          <div
+            style={{
+              border: '1px solid var(--border-light)',
+              borderRadius: '8px',
+              padding: '14px',
+              background: 'var(--bg-surface-soft)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <label className="form-label" style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: 'var(--color-navy)' }}>
+                Rent Documents ({documents.length})
+              </label>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                Agreement, ID proof, receipts
+              </span>
+            </div>
 
-          {/* Rent Notes */}
-          <div>
-            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-              Rent Notes
-            </label>
-            <textarea
-              className="form-input"
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. 2 months security deposit held, annual 5% escalation"
-            />
-          </div>
-
-          {/* Rent Documents */}
-          <div>
-            <label className="form-label" style={{ fontSize: '13px', fontWeight: 600 }}>
-              Rent-Related Documents (Optional)
-            </label>
-            
+            {/* List of staged documents */}
             {documents.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
                 {documents.map((doc, idx) => (
@@ -365,20 +394,31 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '6px 10px',
-                      background: 'var(--bg-surface-subtle)',
-                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-surface)',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-light)',
                       fontSize: '12px'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <FileText size={13} color="var(--color-primary)" />
-                      <span style={{ fontWeight: 600 }}>{doc.d_name}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden' }}>
+                      <FileText size={14} style={{ color: '#D97706', flexShrink: 0 }} />
+                      <span style={{ fontWeight: 600, color: 'var(--color-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {doc.d_name}
+                      </span>
                     </div>
                     <button
                       type="button"
-                      className="btn btn-subtle btn-sm"
                       onClick={() => handleRemoveDoc(idx)}
-                      style={{ padding: '2px', color: '#DC2626' }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-charcoal-muted)',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                      title="Remove document"
                     >
                       <Trash2 size={13} />
                     </button>
@@ -387,115 +427,114 @@ export const StartRentModal: React.FC<StartRentModalProps> = ({
               </div>
             )}
 
-            <div style={{ background: 'var(--bg-surface-subtle)', padding: '14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-light)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: docTypePreset === 'Other Document' ? '1fr 1fr' : '1fr', gap: '10px', marginBottom: '10px' }}>
-                <div>
-                  <label className="form-label" style={{ fontSize: '12px', fontWeight: 600 }}>
-                    Document Type
-                  </label>
-                  <select
-                    className="form-input"
-                    value={docTypePreset}
-                    onChange={(e) => {
-                      setDocTypePreset(e.target.value);
-                      setError('');
-                    }}
-                  >
-                    <option value="Rent Agreement">Rent Agreement</option>
-                    <option value="Police Verification Certificate">Police Verification Certificate</option>
-                    <option value="Tenant ID Proof / Aadhaar">Tenant ID Proof / Aadhaar</option>
-                    <option value="Security Deposit Receipt">Security Deposit Receipt</option>
-                    <option value="Other Document">Other Document</option>
-                  </select>
-                </div>
+            {/* Upload document box */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: documents.length > 0 ? '8px' : '0', borderTop: documents.length > 0 ? '1px dashed var(--border-light)' : 'none' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: docTypePreset === 'Other Document' ? '1fr 1fr' : '1fr', gap: '8px' }}>
+                <select
+                  className="form-input"
+                  style={{ fontSize: '12px', height: '32px' }}
+                  value={docTypePreset}
+                  onChange={(e) => setDocTypePreset(e.target.value)}
+                >
+                  <option value="Rent Agreement">Rent Agreement</option>
+                  <option value="Tenant ID Proof (Aadhaar / Passport)">Tenant ID Proof</option>
+                  <option value="Police Verification">Police Verification</option>
+                  <option value="Deposit Receipt">Deposit Receipt</option>
+                  <option value="Other Document">Other Document</option>
+                </select>
 
                 {docTypePreset === 'Other Document' && (
-                  <div>
-                    <label className="form-label" style={{ fontSize: '12px', fontWeight: 600 }}>
-                      Document Name *
-                    </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={customDocName}
-                      onChange={(e) => {
-                        setCustomDocName(e.target.value);
-                        setError('');
-                      }}
-                      placeholder="Enter document name"
-                      autoFocus
-                    />
-                  </div>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ fontSize: '12px', height: '32px' }}
+                    placeholder="Document Title"
+                    value={customDocName}
+                    onChange={(e) => setCustomDocName(e.target.value)}
+                  />
                 )}
               </div>
 
-              {/* Upload Dropzone */}
-              <div
-                style={{
-                  border: '2px dashed var(--border-medium)',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '12px 16px',
-                  textAlign: 'center',
-                  background: 'var(--bg-surface)',
-                  cursor: isUploadingDoc ? 'not-allowed' : 'pointer',
-                  marginBottom: '10px'
-                }}
-                onClick={() => {
-                  if (!isUploadingDoc) {
-                    document.getElementById('rent-doc-upload-input')?.click();
-                  }
-                }}
-              >
-                <input
-                  id="rent-doc-upload-input"
-                  type="file"
-                  style={{ display: 'none' }}
-                  accept=".pdf,.png,.jpg,.jpeg,.webp"
-                  onChange={handleFileUpload}
-                  disabled={isUploadingDoc}
-                />
-                {isUploadingDoc ? (
-                  <Loader2 size={20} className="spin" style={{ margin: '0 auto 4px', color: 'var(--color-primary)' }} />
-                ) : (
-                  <Upload size={20} style={{ margin: '0 auto 4px', color: 'var(--color-primary)' }} />
-                )}
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {isUploadingDoc ? (
-                    <span>Uploading file...</span>
-                  ) : docFileName ? (
-                    <span style={{ color: '#16A34A' }}>✓ Selected: {docFileName}</span>
-                  ) : (
-                    'Click to select PDF, PNG, JPG, or WebP'
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleAddDoc}
-                  disabled={isUploadingDoc}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    border: '1px dashed var(--border-card)',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    background: 'var(--bg-surface)',
+                    fontSize: '12px',
+                    color: 'var(--color-navy)',
+                    height: '32px'
+                  }}
                 >
-                  <Plus size={14} />
-                  <span>Attach Another Doc</span>
-                </button>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  Auto-saved upon submitting
-                </span>
+                  {isUploadingDoc ? (
+                    <>
+                      <Loader2 size={13} className="spin" />
+                      <span>Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={13} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '180px' }}>
+                        {docFileName || 'Choose File (PDF/Image)'}
+                      </span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    style={{ display: 'none' }}
+                    onChange={handleFileUpload}
+                    disabled={isUploadingDoc}
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                  />
+                </label>
+
+                {(docFileUrl || docFileName) && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleAddDoc}
+                    disabled={isUploadingDoc}
+                    style={{ fontSize: '12px', padding: '5px 10px', height: '32px' }}
+                  >
+                    <Plus size={13} style={{ marginRight: '3px' }} />
+                    Attach
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+          {/* Action buttons */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
-              <Check size={16} />
-              <span>Start Renting</span>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting || isUploadingDoc}
+              style={{ background: '#16A34A', borderColor: '#16A34A', minWidth: '130px' }}
+            >
+              {isSubmitting ? (
+                'Saving...'
+              ) : (
+                <>
+                  <Check size={15} style={{ marginRight: '6px' }} />
+                  Save Rent Details
+                </>
+              )}
             </button>
           </div>
         </form>
