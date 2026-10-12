@@ -206,7 +206,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!isCollapsed && (
               <div className="sidebar-brand-text">
                 <span className="sidebar-brand-title">FamilyVault</span>
-                <span className="sidebar-brand-subtitle">Portfolio V1</span>
               </div>
             )}
           </div>
@@ -250,10 +249,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <PanelLeftOpen size={18} strokeWidth={2} />
             </button>
           )}
-
-          <div className="sidebar-nav-section-label">
-            {!isCollapsed && <span>MAIN NAVIGATION</span>}
-          </div>
 
           <ul className="sidebar-nav-list">
             {navItems.map((item) => {

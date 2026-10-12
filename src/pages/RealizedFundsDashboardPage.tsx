@@ -239,9 +239,6 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
             <span>Realized Funds</span>
           </div>
           <h1 className="bullion-page-title">Realized Funds</h1>
-          <p className="bullion-page-subtitle">
-            Liquid proceeds received from asset sales &amp; matured investments for {activeMember?.name || 'Vault'}
-          </p>
         </div>
 
         <button
@@ -263,9 +260,6 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalReceived)}
           </div>
-          <div className="bullion-overview-sub">
-            Across {filteredTransactions.length} realized {filteredTransactions.length === 1 ? 'transaction' : 'transactions'}
-          </div>
         </div>
 
         {/* Card 2: From Asset Sales */}
@@ -275,9 +269,6 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalFromSales)}
           </div>
-          <div className="bullion-overview-sub">
-            {salesTransactions.length} {salesTransactions.length === 1 ? 'sale transaction' : 'sale transactions'}
-          </div>
         </div>
 
         {/* Card 3: From Maturities */}
@@ -286,9 +277,6 @@ export const RealizedFundsDashboardPage: React.FC<RealizedFundsDashboardPageProp
           <div className="bullion-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalFromMaturities)}
-          </div>
-          <div className="bullion-overview-sub">
-            {maturitiesTransactions.length} {maturitiesTransactions.length === 1 ? 'matured investment' : 'matured investments'}
           </div>
         </div>
       </div>

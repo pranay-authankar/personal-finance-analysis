@@ -184,9 +184,6 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
             <span>Post Office</span>
           </div>
           <h1 className="po-page-title">Post Office</h1>
-          <p className="po-page-subtitle">
-            Small savings schemes for {activeMember?.name || 'User'}
-          </p>
         </div>
 
         <button
@@ -208,9 +205,6 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalValue)}
           </div>
-          <div className="po-overview-sub">
-            Government sovereign backed
-          </div>
         </div>
 
         {/* Card 2: Active Schemes */}
@@ -219,9 +213,6 @@ export const PostOfficeDashboardPage: React.FC<PostOfficeDashboardPageProps> = (
           <div className="po-overview-value">
             {rawInvestments.length}
             <span className="po-overview-unit">Accounts</span>
-          </div>
-          <div className="po-overview-sub">
-            TD, MIS, RD &amp; SCSS portfolios
           </div>
         </div>
 

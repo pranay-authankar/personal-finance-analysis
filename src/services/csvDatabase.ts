@@ -17,7 +17,7 @@ import type {
   DocumentRecord,
   ContributionRecord
 } from '../types';
-import { getLocalDateString, isDateOverdue, parseLocalDate } from '../utils/dateUtils.ts';
+import { getLocalDateString, isDateOverdue, parseLocalDate, isDueDateMissed } from '../utils/dateUtils.ts';
 
 export type {
   FamilyMemberRecord,
@@ -403,6 +403,9 @@ export class CsvDatabaseService {
     this.documents = documents;
     this.contributions = contributions;
     this.isLoaded = true;
+
+    // Automatically check and update overdue records to MISSED on launch
+    await this.syncOverduePaymentStatuses();
   }
 
   private async fetchOrLoadTable<T>(
@@ -741,6 +744,77 @@ export class CsvDatabaseService {
     await this.persistTable('payments', this.payments, PAYMENTS_COLUMNS);
   }
 
+  /**
+   * Automatically synchronizes overdue payment and contribution statuses.
+   * If a due date is strictly before today's local date and the record remains unpaid/unreceived,
+   * its status is automatically marked as 'MISSED'.
+   * If a record was marked 'MISSED' but its due date is today or in the future, it reverts to 'PENDING'.
+   * Never marks completed, paid, received, cancelled, or defaulted records as MISSED.
+   * Preserves original due dates and financial amounts.
+   */
+  public async syncOverduePaymentStatuses(referenceDate: Date | string = new Date()): Promise<boolean> {
+    let hasPaymentsChanged = false;
+    let hasContribsChanged = false;
+
+    // Closed payment statuses that should NEVER be marked MISSED
+    const closedPaymentStatuses = new Set(['PAID', 'RECEIVED', 'COMPLETED', 'CANCELLED']);
+
+    const updatedPayments = this.payments.map((p) => {
+      const cleanDueDate = (p.due_date || '').trim();
+      if (!cleanDueDate) return p;
+
+      const normStatus = (p.status || '').trim().toUpperCase();
+      if (closedPaymentStatuses.has(normStatus)) {
+        return p; // Keep closed/paid record intact
+      }
+
+      const isMissed = isDueDateMissed(cleanDueDate, referenceDate);
+      if (isMissed && normStatus !== 'MISSED') {
+        hasPaymentsChanged = true;
+        return { ...p, status: 'MISSED' };
+      } else if (!isMissed && normStatus === 'MISSED') {
+        hasPaymentsChanged = true;
+        return { ...p, status: 'PENDING' };
+      }
+      return p;
+    });
+
+    if (hasPaymentsChanged) {
+      this.payments = updatedPayments;
+      await this.persistTable('payments', this.payments, PAYMENTS_COLUMNS);
+    }
+
+    // Closed contribution statuses that should NEVER be marked MISSED
+    const closedContribStatuses = new Set(['PAID', 'DEFAULTED', 'CANCELLED', 'COMPLETED']);
+
+    const updatedContribs = this.contributions.map((c) => {
+      const cleanDueDate = (c.due_date || '').trim();
+      if (!cleanDueDate) return c;
+
+      const normStatus = (c.status || '').trim().toUpperCase();
+      if (closedContribStatuses.has(normStatus)) {
+        return c; // Keep closed/paid contribution intact
+      }
+
+      const isMissed = isDueDateMissed(cleanDueDate, referenceDate);
+      if (isMissed && normStatus !== 'MISSED') {
+        hasContribsChanged = true;
+        return { ...c, status: 'MISSED' };
+      } else if (!isMissed && normStatus === 'MISSED') {
+        hasContribsChanged = true;
+        return { ...c, status: 'PENDING' };
+      }
+      return c;
+    });
+
+    if (hasContribsChanged) {
+      this.contributions = updatedContribs;
+      await this.persistTable('contributions', this.contributions, CONTRIBUTIONS_COLUMNS);
+    }
+
+    return hasPaymentsChanged || hasContribsChanged;
+  }
+
   // ============================================================================
   // Documents CRUD (documents.csv)
   // ============================================================================
@@ -893,7 +967,7 @@ export class CsvDatabaseService {
     const saleReceivableLeft = Math.max(0, salePrice - totalSaleReceived);
 
     const pendingPayments = this.payments.filter(
-      (p) => p.a_id === a_id && (p.status === 'PENDING' || p.status === 'OVERDUE') && p.due_date
+      (p) => p.a_id === a_id && (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED') && p.due_date
     );
 
     pendingPayments.sort(

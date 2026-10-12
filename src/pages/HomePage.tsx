@@ -5,7 +5,8 @@ import { useDateTime } from '../context/DateTimeContext';
 import { formatCurrency, formatDate, calculateFDValues } from '../utils/calculations';
 import { getDeadlineClassification } from '../utils/deadlinesColorMap';
 import { getEffectiveBullionValue } from '../utils/bullionCalculations';
-import { parseLocalDate } from '../utils/dateUtils';
+import { parseLocalDate, isDueDateMissed, getDaysDiff } from '../utils/dateUtils';
+import { csvDb } from '../services/csvDatabase';
 import {
   calculateNextMonthlyInterestDate,
   calculateNextQuarterlyInterestDate
@@ -71,6 +72,112 @@ export const HomePage: React.FC = () => {
 
     return { totalReceivables: total, receivablesCount: count };
   }, [activeMember, calculatePropertyFinances, midnightTicker, now]);
+
+  // Missed Payments calculation (deduplicated by unique record ID)
+  const missedList = useMemo(() => {
+    const items: Array<{
+      id: string;
+      title: string;
+      category: string;
+      dueDate: string;
+      amount?: number;
+      route: string;
+      daysOverdue: number;
+    }> = [];
+
+    const memberAssets = (csvDb.assets || []).filter(
+      (a) => a.member_id === activeMember.id && a.asset_status !== 'DELETED'
+    );
+    const assetIdMap = new Map(memberAssets.map((a) => [a.a_id, a]));
+
+    // 1. Check payments.csv (property purchases/sales, bullion balances, FD payments, etc.)
+    // Exclude RENT context to avoid any rental income calculations
+    (csvDb.payments || []).forEach((p) => {
+      const asset = assetIdMap.get(p.a_id);
+      if (!asset) return;
+      if (p.payment_context === 'RENT') return;
+
+      const normStatus = (p.status || '').trim().toUpperCase();
+      const isClosed = ['PAID', 'RECEIVED', 'COMPLETED', 'CANCELLED'].includes(normStatus);
+      if (isClosed) return;
+
+      const cleanDue = (p.due_date || '').trim();
+      const isMissed = normStatus === 'MISSED' || (cleanDue && isDueDateMissed(cleanDue, now));
+      if (!isMissed || !cleanDue) return;
+
+      const diff = getDaysDiff(cleanDue, now);
+      const daysOverdue = diff !== null && diff < 0 ? Math.abs(diff) : 0;
+
+      let title = asset.asset_name || 'Payment';
+      let category = 'Payment';
+      let route = '/home';
+
+      if (asset.asset_type === 'REAL_ESTATE') {
+        const prop = (csvDb.properties || []).find((pr) => pr.a_id === asset.a_id);
+        title = prop?.name || asset.asset_name;
+        category = p.payment_context === 'SALE' ? 'Property Sale Receivable' : 'Property Purchase';
+        route = prop ? `/real-estate/${prop.p_id}` : '/real-estate';
+      } else if (asset.asset_type === 'BULLION') {
+        const bul = (csvDb.bullions || []).find((b) => b.a_id === asset.a_id);
+        title = bul?.b_type || asset.asset_name;
+        category = 'Bullion Balance';
+        route = bul ? `/bullions/${bul.b_id}` : '/bullions';
+      } else if (asset.asset_type === 'FD') {
+        const fd = (csvDb.fds || []).find((f) => f.a_id === asset.a_id);
+        title = `${fd?.bank_name || 'FD'} Deposit`;
+        category = 'Fixed Deposit';
+        route = fd ? `/fds/${fd.fd_id}` : '/fds';
+      } else if (asset.asset_type === 'POST_OFFICE') {
+        const po = (csvDb.postOffice || []).find((o) => o.a_id === asset.a_id);
+        title = `${po?.scheme_name || 'Post Office'} Payment`;
+        category = 'Post Office';
+        route = po ? `/post-office/${po.po_id}` : '/post-office';
+      }
+
+      items.push({
+        id: `pay_${p.payment_id}`,
+        title,
+        category,
+        dueDate: cleanDue,
+        amount: Number(p.amount) || undefined,
+        route,
+        daysOverdue
+      });
+    });
+
+    // 2. Check contributions.csv (Post Office RD recurring deposits)
+    (csvDb.contributions || []).forEach((c) => {
+      const asset = assetIdMap.get(c.a_id);
+      if (!asset) return;
+
+      const normStatus = (c.status || '').trim().toUpperCase();
+      const isClosed = ['PAID', 'DEFAULTED', 'CANCELLED', 'COMPLETED'].includes(normStatus);
+      if (isClosed) return;
+
+      const cleanDue = (c.due_date || '').trim();
+      const isMissed = normStatus === 'MISSED' || (cleanDue && isDueDateMissed(cleanDue, now));
+      if (!isMissed || !cleanDue) return;
+
+      const diff = getDaysDiff(cleanDue, now);
+      const daysOverdue = diff !== null && diff < 0 ? Math.abs(diff) : 0;
+      const po = (csvDb.postOffice || []).find((o) => o.a_id === asset.a_id);
+
+      items.push({
+        id: `cnt_${c.contribution_id}`,
+        title: `${po?.scheme_name || 'Post Office RD'} Installment`,
+        category: 'Post Office RD',
+        dueDate: cleanDue,
+        amount: Number(c.amount) || undefined,
+        route: po ? `/post-office/${po.po_id}` : '/post-office',
+        daysOverdue
+      });
+    });
+
+    // Sort by longest overdue first (earliest due date)
+    items.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+    return items;
+  }, [activeMember.id, now, midnightTicker]);
 
   // 3. Upcoming Events (sorted by nearest date)
   const upcomingList = useMemo(() => {
@@ -424,9 +531,6 @@ export const HomePage: React.FC = () => {
                 {activeMember.role || 'Family Member'}
               </span>
             </div>
-            <p style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0 0' }}>
-              Executive Financial Overview
-            </p>
           </div>
         </div>
 
@@ -739,11 +843,8 @@ export const HomePage: React.FC = () => {
                 color: 'var(--color-charcoal-light)'
               }}
             >
-              Asset Allocation Distribution
+              Asset Allocation
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', fontWeight: 600 }}>
-              Hover segment to inspect
-            </span>
           </div>
 
           <DonutChart portfolio={summary} />
@@ -917,10 +1018,153 @@ export const HomePage: React.FC = () => {
 
           <div style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', marginTop: '6px', fontWeight: 500 }}>
             {receivablesCount > 0
-              ? `${receivablesCount} pending collection from sales & rent`
+              ? `${receivablesCount} sale receivables pending collection`
               : 'Zero uncollected receivables'}
           </div>
         </div>
+      </div>
+
+      {/* MISSED PAYMENTS SECTION */}
+      <div
+        style={{
+          background: missedList.length > 0 ? '#FEF2F2' : 'var(--bg-surface)',
+          border: `1px solid ${missedList.length > 0 ? '#FECACA' : 'var(--border-card)'}`,
+          borderRadius: '14px',
+          padding: '20px 24px',
+          marginBottom: '24px',
+          boxShadow: 'var(--shadow-sm)'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: missedList.length > 0 ? '16px' : '0',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: missedList.length > 0 ? '#FEE2E2' : 'var(--bg-surface-subtle)',
+                border: `1px solid ${missedList.length > 0 ? '#FCA5A5' : 'var(--border-light)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: missedList.length > 0 ? '#DC2626' : 'var(--color-emerald)'
+              }}
+            >
+              {missedList.length > 0 ? <AlertCircle size={17} /> : <CheckCircle2 size={17} />}
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--color-navy)', margin: 0 }}>
+                  Missed Payments
+                </h2>
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    background: missedList.length > 0 ? '#EF4444' : 'var(--color-emerald-bg)',
+                    color: missedList.length > 0 ? '#FFFFFF' : 'var(--color-emerald-dark)',
+                    border: `1px solid ${missedList.length > 0 ? '#DC2626' : 'var(--color-emerald-border)'}`
+                  }}
+                >
+                  {missedList.length > 0 ? `${missedList.length} Overdue` : '0 Missed'}
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--color-charcoal-muted)', margin: '2px 0 0 0' }}>
+                {missedList.length > 0
+                  ? 'Scheduled payments past due date requiring attention'
+                  : 'All scheduled contributions and payments are up to date'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {missedList.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {missedList.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => navigate(item.route)}
+                role="button"
+                tabIndex={0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: '#FFFFFF',
+                  border: '1px solid #FECACA',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#F87171';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#FECACA';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      padding: '3px 7px',
+                      borderRadius: '5px',
+                      background: '#FEE2E2',
+                      color: '#B91C1C',
+                      border: '1px solid #FCA5A5',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {item.daysOverdue > 0 ? `${item.daysOverdue}d overdue` : 'Missed'}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        color: 'var(--color-navy)',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                      }}
+                    >
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--color-charcoal-muted)', marginTop: '1px' }}>
+                      {item.category} · Due {formatDate(item.dueDate)}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: '12px' }}>
+                  {item.amount !== undefined && item.amount > 0 && (
+                    <span style={{ fontSize: '14px', fontWeight: 800, color: '#B91C1C' }}>
+                      ₹ {formatCurrency(item.amount)}
+                    </span>
+                  )}
+                  <ChevronRight size={14} color="var(--color-charcoal-muted)" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* TWO COLUMN DETAIL SECTION: Upcoming Events & Recent Activity */}

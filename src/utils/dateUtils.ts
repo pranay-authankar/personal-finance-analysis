@@ -92,13 +92,22 @@ export function formatHeaderDate(date: Date = new Date()): string {
  * Calculates calendar day difference between target date and reference date (default: today).
  * Positive = future, 0 = today, Negative = past / overdue.
  */
-export function getDaysDiff(targetDateStr?: string | null, referenceDate: Date = new Date()): number | null {
+export function getDaysDiff(targetDateStr?: string | null, referenceDate: Date | string = new Date()): number | null {
   if (!targetDateStr) return null;
   const target = parseLocalDate(targetDateStr);
   if (!target) return null;
 
-  const ref = new Date(referenceDate);
-  ref.setHours(0, 0, 0, 0);
+  let ref: Date | null;
+  if (typeof referenceDate === 'string') {
+    ref = parseLocalDate(referenceDate);
+  } else if (referenceDate instanceof Date) {
+    ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate(), 0, 0, 0, 0);
+  } else {
+    ref = new Date();
+    ref.setHours(0, 0, 0, 0);
+  }
+
+  if (!ref) return null;
 
   const diffMs = target.getTime() - ref.getTime();
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -107,7 +116,7 @@ export function getDaysDiff(targetDateStr?: string | null, referenceDate: Date =
 /**
  * Checks if target date is before today (overdue)
  */
-export function isDateOverdue(targetDateStr?: string | null, referenceDate: Date = new Date()): boolean {
+export function isDateOverdue(targetDateStr?: string | null, referenceDate: Date | string = new Date()): boolean {
   const diff = getDaysDiff(targetDateStr, referenceDate);
   return diff !== null && diff < 0;
 }
@@ -115,7 +124,7 @@ export function isDateOverdue(targetDateStr?: string | null, referenceDate: Date
 /**
  * Checks if target date is today
  */
-export function isDateToday(targetDateStr?: string | null, referenceDate: Date = new Date()): boolean {
+export function isDateToday(targetDateStr?: string | null, referenceDate: Date | string = new Date()): boolean {
   const diff = getDaysDiff(targetDateStr, referenceDate);
   return diff === 0;
 }
@@ -186,4 +195,13 @@ export function getCalendarMonthMatrix(year: number, monthIndex: number, todayDa
   }
 
   return cells;
+}
+
+/**
+ * Checks whether a due date is strictly before today's local date (missed/overdue).
+ * Returns false if due date is today or in the future.
+ */
+export function isDueDateMissed(dueDateStr?: string | null, referenceDate: Date | string = new Date()): boolean {
+  if (!dueDateStr || !dueDateStr.trim()) return false;
+  return isDateOverdue(dueDateStr.trim(), referenceDate);
 }

@@ -78,8 +78,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
   const [tenantContact, setTenantContact] = useState('');
   const [rentAmount, setRentAmount] = useState('');
   const [rentStartDate, setRentStartDate] = useState(getLocalDateString());
-  const [nextRentDue, setNextRentDue] = useState('');
-  const [rentNotes, setRentNotes] = useState('');
+  const [rentEndDate, setRentEndDate] = useState('');
 
   // Documents
   const [documents, setDocuments] = useState<AttachedDoc[]>([]);
@@ -253,8 +252,7 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
             tenant_contact: tenantContact.trim(),
             rent_amount: Number(rentAmount),
             rent_start_date: rentStartDate || purchaseDate || getLocalDateString(),
-            next_rent_due: nextRentDue || purchaseDate || getLocalDateString(),
-            r_notes: rentNotes.trim()
+            rent_end_date: rentEndDate || undefined
           });
         }
 
@@ -669,28 +667,15 @@ export const AddPropertyPage: React.FC<AddPropertyPageProps> = ({ onShowToast })
 
                     <div className="form-group">
                       <label className="form-label" style={{ color: '#92400E' }}>
-                        Next Rent Due Date <span className="text-optional">(Optional)</span>
+                        Lease End Date <span className="text-optional">(Optional)</span>
                       </label>
                       <input
                         type="date"
                         className="form-input"
-                        value={nextRentDue}
-                        onChange={(e) => setNextRentDue(e.target.value)}
+                        value={rentEndDate}
+                        onChange={(e) => setRentEndDate(e.target.value)}
                       />
                     </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label" style={{ color: '#92400E' }}>
-                      Rental Notes <span className="text-optional">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      placeholder="e.g. 11 months agreement, 2 months deposit collected"
-                      value={rentNotes}
-                      onChange={(e) => setRentNotes(e.target.value)}
-                    />
                   </div>
                 </div>
               )}

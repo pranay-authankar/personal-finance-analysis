@@ -17,7 +17,7 @@ export type PropertyType =
 export type PropertyStatus = 'ACTIVE' | 'SOLD' | 'DELETED';
 export type PaymentType = 'PURCHASE' | 'RECEIVED';
 export type PaymentContext = 'PURCHASE' | 'SALE' | 'MATURITY' | 'RENT' | 'OTHER';
-export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE' | 'RECEIVED';
+export type PaymentStatus = 'PAID' | 'PENDING' | 'OVERDUE' | 'RECEIVED' | 'MISSED';
 
 // 1. Family Members -> family_members.csv
 export interface FamilyMemberRecord {

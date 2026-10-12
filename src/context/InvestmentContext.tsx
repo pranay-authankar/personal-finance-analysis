@@ -37,7 +37,7 @@ import {
 import { csvDb } from '../services/csvDatabase';
 import { authService } from '../services/authService';
 import { useDateTime } from './DateTimeContext';
-import { getLocalDateString, parseLocalDate } from '../utils/dateUtils';
+import { getLocalDateString, parseLocalDate, isDueDateMissed } from '../utils/dateUtils';
 
 const STORAGE_KEYS = {
   ACTIVE_MEMBER_ID: 'familyvault_active_member_id'
@@ -225,6 +225,9 @@ interface InvestmentContextType {
 
   // Portfolio Calculations
   getPortfolioSummary: (member?: FamilyMember) => PortfolioSummary;
+
+  // Overdue Payment Synchronization
+  syncOverduePaymentStatuses: (referenceDate?: Date | string) => Promise<boolean>;
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
@@ -296,6 +299,44 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       localStorage.setItem(STORAGE_KEYS.ACTIVE_MEMBER_ID, activeMemberId);
     }
   }, [activeMemberId]);
+
+  // Overdue Payment Synchronization wrapper
+  const syncOverduePaymentStatuses = async (referenceDate: Date | string = now): Promise<boolean> => {
+    const didUpdate = await csvDb.syncOverduePaymentStatuses(referenceDate);
+    if (didUpdate) {
+      bumpRevision();
+    }
+    return didUpdate;
+  };
+
+  // Re-check overdue records when date rolls over at midnight
+  useEffect(() => {
+    if (!isCsvLoaded) return;
+    csvDb.syncOverduePaymentStatuses(now).then((didUpdate) => {
+      if (didUpdate) {
+        bumpRevision();
+      }
+    });
+  }, [midnightTicker, isCsvLoaded, now]);
+
+  // Re-check overdue records when app window is refocused or tab becomes visible
+  useEffect(() => {
+    const handleRecheck = () => {
+      if (isCsvLoaded) {
+        csvDb.syncOverduePaymentStatuses(new Date()).then((didUpdate) => {
+          if (didUpdate) {
+            bumpRevision();
+          }
+        });
+      }
+    };
+    window.addEventListener('focus', handleRecheck);
+    document.addEventListener('visibilitychange', handleRecheck);
+    return () => {
+      window.removeEventListener('focus', handleRecheck);
+      document.removeEventListener('visibilitychange', handleRecheck);
+    };
+  }, [isCsvLoaded]);
 
   // ==========================================================================
   // Derive Application State from CSV Files
@@ -478,7 +519,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             );
             const initialPaid = paidPurchases.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
             const pendingPayment = bulPayments.find(
-              (p) => p.payment_type === 'PURCHASE' && (p.status === 'PENDING' || p.status === 'OVERDUE')
+              (p) => p.payment_type === 'PURCHASE' && (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED')
             );
             const val = Number(b.purchase_value) || 0;
             const remaining = Math.max(0, val - initialPaid);
@@ -487,11 +528,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             let paymentStatus: 'completed' | 'pending' | 'missed' = 'completed';
             if (remaining > 0) {
               if (paymentDueDate) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const due = new Date(paymentDueDate);
-                due.setHours(0, 0, 0, 0);
-                paymentStatus = due < today ? 'missed' : 'pending';
+                paymentStatus = isDueDateMissed(paymentDueDate, now) ? 'missed' : 'pending';
               } else {
                 paymentStatus = 'pending';
               }
@@ -534,7 +571,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           const prop = csvDb.properties.find((p) => p.a_id === a.a_id);
           if (prop) {
             const propPending = csvDb.payments.find(
-              (p) => (p.a_id === a.a_id || p.p_id === prop.p_id) && p.payment_type === 'PURCHASE' && p.due_date && (p.status === 'PENDING' || p.status === 'OVERDUE')
+              (p) => (p.a_id === a.a_id || p.p_id === prop.p_id) && p.payment_type === 'PURCHASE' && p.due_date && (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED')
             );
             memberProps.push({
               ...prop,
@@ -631,7 +668,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         realizedFunds: memberRealized
       };
     });
-  }, [dataRevision, midnightTicker, now]);
+  }, [dataRevision, midnightTicker, now, todayStr]);
 
   // Fallback empty member when 0 family members exist in CSV
   const defaultEmptyMember: FamilyMember = useMemo(() => ({
@@ -1359,7 +1396,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       (p) =>
         (p.a_id === a_id || p.p_id === p_id) &&
         p.payment_type === 'PURCHASE' &&
-        (p.status === 'PENDING' || p.status === 'OVERDUE')
+        (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED')
     );
 
     if (pendingPayment) {
@@ -1417,7 +1454,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!p) return undefined;
     const asset = csvDb.assets.find((a) => a.a_id === p.a_id);
     const propPending = csvDb.payments.find(
-      (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE')
+      (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE' || pay.status === 'MISSED')
     );
     return {
       ...p,
@@ -1697,6 +1734,34 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const prop = csvDb.properties.find((p) => p.p_id === p_id);
     const a_id = prop?.a_id || `ast_${p_id}`;
     const numAmount = Number(paymentData.amount) || 0;
+
+    const pendingPayment = csvDb.payments.find(
+      (p) =>
+        (p.a_id === a_id || p.p_id === p_id) &&
+        p.payment_type === 'PURCHASE' &&
+        (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED')
+    );
+
+    if (pendingPayment) {
+      if (numAmount >= pendingPayment.amount) {
+        // Complete the pending/missed record in place
+        const updatedRecord: PaymentRecord = {
+          ...pendingPayment,
+          status: 'PAID',
+          payment_date: paymentData.payment_date || todayStr,
+          notes: paymentData.notes?.trim() || pendingPayment.notes || 'Purchase payment completed'
+        };
+        csvDb.updatePayment(pendingPayment.payment_id, updatedRecord);
+        bumpRevision();
+        return updatedRecord;
+      } else {
+        // Reduce remaining balance on pending record
+        csvDb.updatePayment(pendingPayment.payment_id, {
+          amount: Math.max(0, pendingPayment.amount - numAmount)
+        });
+      }
+    }
+
     const paymentRecord: PaymentRecord = {
       payment_id: `pay_${Date.now()}`,
       a_id,
@@ -1728,6 +1793,35 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const prop = csvDb.properties.find((p) => p.p_id === p_id);
     const a_id = prop?.a_id || `ast_${p_id}`;
     const numAmount = Number(paymentData.amount) || 0;
+
+    const pendingSalePayment = csvDb.payments.find(
+      (p) =>
+        (p.a_id === a_id || p.p_id === p_id) &&
+        p.payment_type === 'RECEIVED' &&
+        p.payment_context === 'SALE' &&
+        (p.status === 'PENDING' || p.status === 'OVERDUE' || p.status === 'MISSED')
+    );
+
+    if (pendingSalePayment) {
+      if (numAmount >= pendingSalePayment.amount) {
+        // Complete the pending/missed sale receivable in place
+        const updatedRecord: PaymentRecord = {
+          ...pendingSalePayment,
+          status: 'RECEIVED',
+          payment_date: paymentData.payment_date || todayStr,
+          notes: paymentData.notes?.trim() || pendingSalePayment.notes || 'Sale receivable received'
+        };
+        csvDb.updatePayment(pendingSalePayment.payment_id, updatedRecord);
+        bumpRevision();
+        return updatedRecord;
+      } else {
+        // Partial collection
+        csvDb.updatePayment(pendingSalePayment.payment_id, {
+          amount: Math.max(0, pendingSalePayment.amount - numAmount)
+        });
+      }
+    }
+
     const paymentRecord: PaymentRecord = {
       payment_id: `pay_${Date.now()}`,
       a_id,
@@ -2105,7 +2199,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const asset = csvDb.assets.find((a) => a.a_id === p.a_id);
       const status: PropertyStatus = (asset?.asset_status as PropertyStatus) || 'ACTIVE';
       const propPending = csvDb.payments.find(
-        (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE')
+        (pay) => (pay.a_id === p.a_id || pay.p_id === p.p_id) && pay.payment_type === 'PURCHASE' && pay.due_date && (pay.status === 'PENDING' || pay.status === 'OVERDUE' || pay.status === 'MISSED')
       );
       return {
         ...p,
@@ -2122,7 +2216,7 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...r,
       is_active: !r.rent_end_date || r.rent_end_date >= todayStr
     }));
-  }, [dataRevision, midnightTicker, now]);
+  }, [dataRevision, todayStr]);
 
   return (
     <InvestmentContext.Provider
@@ -2185,7 +2279,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         deleteRealizedFund,
         getRealizedFundById,
         realizeInvestment,
-        getPortfolioSummary
+        getPortfolioSummary,
+        syncOverduePaymentStatuses
       }}
     >
       {children}

@@ -75,7 +75,7 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
     return rawFds.reduce((sum, f) => sum + (Number(f.principal) || 0), 0);
   }, [rawFds]);
 
-  const { totalMaturityPayout, totalInterestGain, avgInterestRate } = useMemo(() => {
+  const { totalInterestGain, avgInterestRate } = useMemo(() => {
     let maturitySum = 0;
     let interestSum = 0;
     let weightedRateSum = 0;
@@ -204,9 +204,6 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
             <span>Fixed Deposits</span>
           </div>
           <h1 className="fd-page-title">Fixed Deposits</h1>
-          <p className="fd-page-subtitle">
-            Active deposits for {activeMember?.name || 'User'}
-          </p>
         </div>
 
         <button
@@ -223,25 +220,25 @@ export const FdDashboardPage: React.FC<FdDashboardPageProps> = ({ onShowToast })
       <div className="fd-overview-grid">
         {/* Card 1: Total FD Value */}
         <div className="fd-overview-card">
-          <span className="fd-overview-kicker">Total FD Value</span>
+          <span className="fd-overview-kicker">Total Value</span>
           <div className="fd-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalPrincipal)}
           </div>
           <div className="fd-overview-sub">
-            +₹ {formatCurrency(totalInterestGain)} returns · Matures to ₹ {formatCurrency(totalMaturityPayout)}
+            +₹ {formatCurrency(totalInterestGain)} interest
           </div>
         </div>
 
         {/* Card 2: Active FDs */}
         <div className="fd-overview-card">
-          <span className="fd-overview-kicker">Active FDs</span>
+          <span className="fd-overview-kicker">Active Deposits</span>
           <div className="fd-overview-value">
             {rawFds.length}
-            <span className="fd-overview-unit">Deposits</span>
+            <span className="fd-overview-unit">FDs</span>
           </div>
           <div className="fd-overview-sub">
-            Weighted avg: {avgInterestRate}% p.a. yield
+            Avg {avgInterestRate}% p.a.
           </div>
         </div>
 

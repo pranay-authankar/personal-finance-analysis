@@ -280,9 +280,6 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             <span>Real Estate</span>
           </div>
           <h1 className="bullion-page-title">Real Estate</h1>
-          <p className="bullion-page-subtitle">
-            Property holdings &amp; rental portfolio for {activeMember?.name || 'User'}
-          </p>
         </div>
 
         <button
@@ -308,9 +305,6 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalActivePurchaseValue)}
           </div>
-          <div className="bullion-overview-sub">
-            Across {activeProperties.length} active holdings
-          </div>
         </div>
 
         {/* Card 2: Active Properties */}
@@ -324,30 +318,24 @@ export const RealEstateDashboardPage: React.FC<RealEstateDashboardPageProps> = (
             {activeProperties.length}
             <span className="bullion-overview-unit">Properties</span>
           </div>
-          <div className="bullion-overview-sub">
-            Land, commercial &amp; residential
-          </div>
         </div>
 
         {/* Card 3: Rental Income (Dedicated section trigger) */}
         <div
           className={`bullion-overview-card re-overview-card-interactive ${mainSection === 'rent' ? 'active-tab' : ''}`}
           onClick={() => setMainSection('rent')}
-          title="Click to view dedicated Rental Management section, yields & payment ledgers"
+          title="Click to view Rent section"
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="bullion-overview-kicker">Rental Income</span>
+            <span className="bullion-overview-kicker">Rent Section</span>
             <span style={{ fontSize: '11px', color: 'var(--color-gold)', fontWeight: 700 }}>
-              {mainSection === 'rent' ? 'Viewing Rent Section' : 'Open Rent Section →'}
+              {mainSection === 'rent' ? 'Active' : 'Open →'}
             </span>
           </div>
           <div className="bullion-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalMonthlyRentalIncome)}
             <span className="bullion-overview-unit" style={{ fontSize: '12px' }}>/mo</span>
-          </div>
-          <div className="bullion-overview-sub">
-            From {activeRentsCount} active tenant {activeRentsCount === 1 ? 'lease' : 'leases'}
           </div>
         </div>
       </div>

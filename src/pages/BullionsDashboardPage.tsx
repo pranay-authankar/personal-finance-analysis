@@ -174,9 +174,6 @@ export const BullionsDashboardPage: React.FC<BullionsDashboardPageProps> = ({ on
             <span>Bullions</span>
           </div>
           <h1 className="bullion-page-title">Bullions</h1>
-          <p className="bullion-page-subtitle">
-            Precious metals &amp; stones for {activeMember?.name || 'User'}
-          </p>
         </div>
 
         <button
@@ -193,13 +190,10 @@ export const BullionsDashboardPage: React.FC<BullionsDashboardPageProps> = ({ on
       <div className="bullion-overview-grid">
         {/* Card 1: Total Purchase Value */}
         <div className="bullion-overview-card">
-          <span className="bullion-overview-kicker">Total Purchase Value</span>
+          <span className="bullion-overview-kicker">Total Value</span>
           <div className="bullion-overview-value">
             <span style={{ color: 'var(--color-gold)', marginRight: '4px', fontWeight: 700 }}>₹</span>
             {formatCurrency(totalHeldPurchaseValue)}
-          </div>
-          <div className="bullion-overview-sub">
-            Across {heldInvestments.length} active holdings
           </div>
         </div>
 
@@ -210,9 +204,6 @@ export const BullionsDashboardPage: React.FC<BullionsDashboardPageProps> = ({ on
             {heldInvestments.length}
             <span className="bullion-overview-unit">Assets</span>
           </div>
-          <div className="bullion-overview-sub">
-            Active in physical custody
-          </div>
         </div>
 
         {/* Card 3: Assets Sold */}
@@ -221,9 +212,6 @@ export const BullionsDashboardPage: React.FC<BullionsDashboardPageProps> = ({ on
           <div className="bullion-overview-value">
             {soldInvestments.length}
             <span className="bullion-overview-unit">Assets</span>
-          </div>
-          <div className="bullion-overview-sub">
-            Liquidated / realized funds
           </div>
         </div>
       </div>
