@@ -1,6 +1,7 @@
 import { ipcMain, type BrowserWindow } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import {
   SqliteStorageEngine
 } from '../server/storage/sqliteAdapter.ts';
@@ -13,6 +14,9 @@ import {
   getVaultBackupsDir
 } from '../server/config.ts';
 import { ALL_TABLE_NAMES, type TableName } from '../server/storage/schema.ts';
+import { SyncServer } from '../server/sync/syncServer.ts';
+import { SyncClient } from '../server/sync/syncClient.ts';
+import { TABLE_ORDER, type SyncRole, type ConflictResolutionPolicy } from '../server/sync/syncProtocol.ts';
 import type {
   VaultStatus,
   VaultAllRecords,
@@ -27,6 +31,8 @@ export class VaultIpcController {
   private engine: SqliteStorageEngine;
   private docStorage: EncryptedDocumentStorage;
   private backupManager: VaultBackupRestoreManager;
+  private syncServer: SyncServer;
+  private syncClient: SyncClient;
   private inactivityTimer: NodeJS.Timeout | null = null;
   private mainWindow: BrowserWindow | null = null;
 
@@ -38,7 +44,24 @@ export class VaultIpcController {
       getVaultAttachmentsDir(),
       getVaultBackupsDir()
     );
+    this.syncServer = new SyncServer({
+      vaultDir: path.dirname(getVaultDbPath()),
+      getVaultRecords: async () => this.handleDirectLoadAll(),
+      applyVaultRecords: async (records) => this.handleDirectApplyVaultRecords(records),
+      createBackup: async () => {
+        const keyBuffer = this.engine.getKeyBuffer();
+        if (!keyBuffer) throw new Error('Vault is locked. Cannot create pre-sync backup.');
+        const destDir = getVaultBackupsDir();
+        fs.mkdirSync(destDir, { recursive: true });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const targetFile = path.join(destDir, `pre_sync_backup_${timestamp}.fvault`);
+        await this.backupManager.createBackup(targetFile, keyBuffer);
+        return { success: true, backupPath: targetFile };
+      }
+    });
+    this.syncClient = new SyncClient();
   }
+
 
   public setWindow(window: BrowserWindow): void {
     this.mainWindow = window;
@@ -338,7 +361,134 @@ export class VaultIpcController {
     ipcMain.handle('vault:heartbeat', async () => {
       this.resetInactivityTimer();
     });
+
+    // 14. Sync: Start Host Session
+    ipcMain.handle('vault:sync:start-host', async (_event, role?: SyncRole) => {
+      this.resetInactivityTimer();
+      if (!this.engine.isUnlocked()) {
+        throw new Error('Vault must be unlocked to start sync session.');
+      }
+      return this.syncServer.startSession(role);
+    });
+
+    // 15. Sync: Stop Host Session
+    ipcMain.handle('vault:sync:stop-host', async () => {
+      this.resetInactivityTimer();
+      await this.syncServer.stopSession();
+    });
+
+    // 16. Sync: Get Local IPs
+    ipcMain.handle('vault:sync:get-local-ips', async () => {
+      return this.syncServer.getLocalIps();
+    });
+
+    // 17. Sync: Connect Client
+    ipcMain.handle('vault:sync:connect-client', async (_event, options: { hostIp: string; port: number; pin: string }) => {
+      this.resetInactivityTimer();
+      if (!this.engine.isUnlocked()) {
+        throw new Error('Vault must be unlocked to connect for sync.');
+      }
+      return this.syncClient.connectAndPair({
+        hostIp: options.hostIp,
+        port: options.port,
+        pin: options.pin,
+        peerDevice: {
+          deviceId: `peer_${os.hostname()}`,
+          deviceName: os.hostname(),
+          platform: (process.platform === 'win32' ? 'windows' : 'other'),
+          appVersion: '1.0.0'
+        }
+      });
+    });
+
+    // 18. Sync: Preview Sync Plan
+    ipcMain.handle('vault:sync:preview-sync', async () => {
+      this.resetInactivityTimer();
+      const localVault = this.handleDirectLoadAll();
+      return this.syncClient.previewSync(localVault);
+    });
+
+    // 19. Sync: Execute Sync Transfer
+    ipcMain.handle('vault:sync:execute-sync', async (_event, options: { policy: ConflictResolutionPolicy; manualChoices?: Record<string, 'local' | 'remote'> }) => {
+      this.resetInactivityTimer();
+      const localVault = this.handleDirectLoadAll();
+      return this.syncClient.pushSync(localVault, options.policy, options.manualChoices);
+    });
+
+    // 20. Sync: Get Paired Devices
+    ipcMain.handle('vault:sync:get-paired-devices', async () => {
+      return this.syncServer.getPairedDevices();
+    });
+
+    // 21. Sync: Revoke Device
+    ipcMain.handle('vault:sync:revoke-device', async (_event, deviceId: string) => {
+      return this.syncServer.revokeDevice(deviceId);
+    });
   }
+
+  public handleDirectLoadAll(): VaultAllRecords {
+    const db = this.engine.getDb();
+    if (!db || !this.engine.isUnlocked()) {
+      throw new Error('Vault is locked. Cannot load data.');
+    }
+
+    return {
+      familyMembers: db.prepare('SELECT * FROM family_members ORDER BY created_at ASC').all() as any[],
+      assets: db.prepare('SELECT * FROM assets ORDER BY created_at ASC').all() as any[],
+      fds: db.prepare('SELECT * FROM fds').all() as any[],
+      postOffice: db.prepare('SELECT * FROM post_office').all() as any[],
+      bullions: db.prepare('SELECT * FROM bullions').all() as any[],
+      properties: db.prepare('SELECT * FROM properties').all() as any[],
+      rents: db.prepare('SELECT * FROM rents').all() as any[],
+      assetSales: db.prepare('SELECT * FROM asset_sales').all() as any[],
+      payments: db.prepare('SELECT * FROM payments').all() as any[],
+      documents: db.prepare('SELECT * FROM documents').all() as any[],
+      contributions: db.prepare('SELECT * FROM contributions').all() as any[]
+    };
+  }
+
+  public handleDirectApplyVaultRecords(records: VaultAllRecords): { success: boolean; error?: string } {
+    const db = this.engine.getDb();
+    if (!db || !this.engine.isUnlocked()) {
+      return { success: false, error: 'Vault is locked.' };
+    }
+
+    const tableDbMap: Record<string, TableName> = {
+      familyMembers: 'family_members',
+      assets: 'assets',
+      fds: 'fds',
+      postOffice: 'post_office',
+      bullions: 'bullions',
+      properties: 'properties',
+      rents: 'rents',
+      assetSales: 'asset_sales',
+      payments: 'payments',
+      documents: 'documents',
+      contributions: 'contributions'
+    };
+
+    try {
+      const txn = db.transaction(() => {
+        for (const tableKey of TABLE_ORDER) {
+          const dbTable = tableDbMap[tableKey];
+          const rows = records[tableKey];
+          if (rows && Array.isArray(rows)) {
+            this.syncTableRows(db, dbTable, rows as Record<string, unknown>[]);
+          }
+        }
+        const fkCheck = db.pragma('foreign_key_check');
+        if (Array.isArray(fkCheck) && fkCheck.length > 0) {
+          throw new Error(`Foreign key constraint failure: ${JSON.stringify(fkCheck)}`);
+        }
+      });
+      txn();
+      return { success: true };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to apply synced records';
+      return { success: false, error: msg };
+    }
+  }
+
 
   /**
    * Helper that reconciles an incoming table array with SQLite.

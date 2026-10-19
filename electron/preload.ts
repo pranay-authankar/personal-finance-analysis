@@ -21,7 +21,18 @@ const bridge: VaultApiBridge = {
     return () => {
       ipcRenderer.removeListener('vault:locked', handler);
     };
+  },
+  sync: {
+    startHost: (role) => ipcRenderer.invoke('vault:sync:start-host', role),
+    stopHost: () => ipcRenderer.invoke('vault:sync:stop-host'),
+    getLocalIps: () => ipcRenderer.invoke('vault:sync:get-local-ips'),
+    connectClient: (options) => ipcRenderer.invoke('vault:sync:connect-client', options),
+    previewSync: () => ipcRenderer.invoke('vault:sync:preview-sync'),
+    executeSync: (options) => ipcRenderer.invoke('vault:sync:execute-sync', options),
+    getPairedDevices: () => ipcRenderer.invoke('vault:sync:get-paired-devices'),
+    revokeDevice: (deviceId) => ipcRenderer.invoke('vault:sync:revoke-device', deviceId),
   }
 };
+
 
 contextBridge.exposeInMainWorld('vaultApi', bridge);

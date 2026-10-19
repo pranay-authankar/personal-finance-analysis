@@ -10,7 +10,7 @@ import type {
   PaymentRecord,
   DocumentRecord,
   ContributionRecord
-} from '../src/types';
+} from '../src/types/index.ts';
 
 export interface VaultStatus {
   isConfigured: boolean;
@@ -48,6 +48,73 @@ export interface DecryptedAttachmentResult {
   mimeType: string;
 }
 
+export type SyncRole = 'host_sender' | 'host_receiver' | 'bidirectional';
+
+export interface DeviceInfo {
+  deviceId: string;
+  deviceName: string;
+  platform: 'windows' | 'android' | 'browser' | 'other';
+  appVersion: string;
+}
+
+export interface PairedDevice {
+  deviceId: string;
+  deviceName: string;
+  platform: string;
+  pairedAt: string;
+  lastSyncAt?: string;
+  isRevoked: boolean;
+}
+
+export interface HostSessionInfo {
+  sessionId: string;
+  hostDevice: DeviceInfo;
+  port: number;
+  hostIps: string[];
+  publicKeyHex: string;
+  expiresAt: number;
+}
+
+export interface ConflictingRecord {
+  table: keyof VaultAllRecords;
+  id: string;
+  localRecord: Record<string, unknown>;
+  remoteRecord: Record<string, unknown>;
+  differingFields: string[];
+}
+
+export interface SyncPlan {
+  totalInserts: number;
+  totalIdentical: number;
+  totalConflicts: number;
+  missingAttachments: string[];
+  inserts: Partial<Record<keyof VaultAllRecords, Record<string, unknown>[]>>;
+  conflicts: ConflictingRecord[];
+}
+
+export type ConflictResolutionPolicy = 'keep_local' | 'use_remote' | 'selective';
+
+export interface SyncExecutionResult {
+  success: boolean;
+  backupPath?: string;
+  recordsInserted: number;
+  recordsUpdated: number;
+  recordsPreserved: number;
+  attachmentsTransferred: number;
+  error?: string;
+}
+
+export interface VaultSyncBridge {
+  startHost(role?: SyncRole): Promise<{ sessionInfo: HostSessionInfo; pin: string }>;
+  stopHost(): Promise<void>;
+  getLocalIps(): Promise<string[]>;
+  connectClient(options: { hostIp: string; port: number; pin: string }): Promise<{ hostDevice: DeviceInfo }>;
+  previewSync(localVault: VaultAllRecords): Promise<SyncPlan>;
+  executeSync(options: { policy: ConflictResolutionPolicy; manualChoices?: Record<string, 'local' | 'remote'> }): Promise<SyncExecutionResult>;
+  getPairedDevices(): Promise<PairedDevice[]>;
+  revokeDevice(deviceId: string): Promise<boolean>;
+}
+
 export interface VaultApiBridge {
   getStatus(): Promise<VaultStatus>;
   createVault(masterPassword: string): Promise<{ success: boolean; error?: string }>;
@@ -63,4 +130,5 @@ export interface VaultApiBridge {
   restoreBackup(backupPath: string, password: string): Promise<{ success: boolean; error?: string }>;
   heartbeat(): Promise<void>;
   onLocked(callback: () => void): () => void;
+  sync?: VaultSyncBridge;
 }

@@ -228,6 +228,9 @@ interface InvestmentContextType {
 
   // Overdue Payment Synchronization
   syncOverduePaymentStatuses: (referenceDate?: Date | string) => Promise<boolean>;
+
+  // Refresh All Tables from Vault
+  refreshData: () => Promise<void>;
 }
 
 const InvestmentContext = createContext<InvestmentContextType | undefined>(undefined);
@@ -318,6 +321,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       bumpRevision();
     }
     return didUpdate;
+  };
+
+  const refreshData = async (): Promise<void> => {
+    await csvDb.loadAll();
+    bumpRevision();
   };
 
   // Re-check overdue records when date rolls over at midnight
@@ -2298,7 +2306,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         getRealizedFundById,
         realizeInvestment,
         getPortfolioSummary,
-        syncOverduePaymentStatuses
+        syncOverduePaymentStatuses,
+        refreshData
       }}
     >
       {children}

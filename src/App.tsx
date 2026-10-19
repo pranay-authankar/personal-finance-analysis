@@ -4,6 +4,7 @@ import { DateTimeProvider } from './context/DateTimeContext';
 import { InvestmentProvider, useInvestments } from './context/InvestmentContext';
 import { Sidebar } from './components/Sidebar';
 import { TopUtilityBar } from './components/TopUtilityBar';
+import { SyncModal } from './components/SyncModal';
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { FamilySelectPage } from './pages/FamilySelectPage';
@@ -57,6 +58,7 @@ const AppContent: React.FC = () => {
     return localStorage.getItem('familyvault_sidebar_collapsed') === 'true';
   });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
 
   const toggleSidebarCollapse = () => {
     setIsSidebarCollapsed((prev) => {
@@ -121,10 +123,14 @@ const AppContent: React.FC = () => {
         isMobileOpen={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onShowToast={showToast}
+        onOpenSyncModal={() => setIsSyncModalOpen(true)}
       />
 
       <div className="app-main-viewport">
-        <TopUtilityBar onOpenMobileMenu={() => setIsMobileSidebarOpen(true)} />
+        <TopUtilityBar
+          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        />
 
         <main className="app-page-wrapper">
           <Routes>
@@ -311,6 +317,13 @@ const AppContent: React.FC = () => {
       </Routes>
     </main>
   </div>
+
+  {/* Secure Device Sync Modal */}
+  <SyncModal
+    isOpen={isSyncModalOpen}
+    onClose={() => setIsSyncModalOpen(false)}
+    onShowToast={showToast}
+  />
 
   {/* Floating Toast Notification Hub */}
   <div className="toast-container">

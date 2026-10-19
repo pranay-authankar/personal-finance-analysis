@@ -17,7 +17,8 @@ import {
   LogOut,
   X,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ interface SidebarProps {
   isMobileOpen: boolean;
   onCloseMobile: () => void;
   onShowToast: (msg: string, type?: 'success' | 'info' | 'warn') => void;
+  onOpenSyncModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,7 +35,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   isMobileOpen,
   onCloseMobile,
-  onShowToast
+  onShowToast,
+  onOpenSyncModal
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -328,6 +331,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="item-sub">Change active portfolio context</div>
                     </div>
                   </button>
+
+                  {onOpenSyncModal && (
+                    <button
+                      type="button"
+                      className="settings-popover-item"
+                      onClick={() => {
+                        setShowSettingsPopover(false);
+                        onOpenSyncModal();
+                        onCloseMobile();
+                      }}
+                    >
+                      <RefreshCw size={16} />
+                      <div>
+                        <div className="item-title">Device Sync (Wi-Fi)</div>
+                        <div className="item-sub">Pair & sync with Android/PC</div>
+                      </div>
+                    </button>
+                  )}
 
                   <div className="settings-divider" />
 

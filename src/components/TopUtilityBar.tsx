@@ -2,13 +2,14 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { GlobalHeaderClock } from './GlobalHeaderClock';
-import { Menu, ChevronRight, Lock } from 'lucide-react';
+import { Menu, ChevronRight, Lock, RefreshCw } from 'lucide-react';
 
 interface TopUtilityBarProps {
   onOpenMobileMenu: () => void;
+  onOpenSyncModal?: () => void;
 }
 
-export const TopUtilityBar: React.FC<TopUtilityBarProps> = ({ onOpenMobileMenu }) => {
+export const TopUtilityBar: React.FC<TopUtilityBarProps> = ({ onOpenMobileMenu, onOpenSyncModal }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { activeMember, isAuthenticated, logout } = useInvestments();
@@ -59,6 +60,32 @@ export const TopUtilityBar: React.FC<TopUtilityBarProps> = ({ onOpenMobileMenu }
           <div className="top-utility-clock-wrapper">
             <GlobalHeaderClock />
           </div>
+
+          {/* Secure Device Sync Button */}
+          {onOpenSyncModal && (
+            <button
+              type="button"
+              className="top-utility-sync-btn"
+              onClick={onOpenSyncModal}
+              title="Secure Device Sync (Wi-Fi)"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                background: 'rgba(56, 189, 248, 0.08)',
+                color: '#38bdf8',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer'
+              }}
+            >
+              <RefreshCw size={13} strokeWidth={2.2} />
+              <span>Sync</span>
+            </button>
+          )}
 
           {/* Manual Vault Lock Button */}
           <button

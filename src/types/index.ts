@@ -2,7 +2,7 @@
 // Fixed Database Structure for V1 (CSV Tables: family_members, assets, fds, post_office, bullions, properties, rents, asset_sales, payments, documents)
 // ============================================================================
 
-import { parseLocalDate, getLocalDateString } from '../utils/dateUtils';
+import { parseLocalDate, getLocalDateString } from '../utils/dateUtils.ts';
 
 export type PropertyType =
   | 'LAND'

@@ -19,7 +19,7 @@
     "pack": "npm run build:app && electron-builder --dir",
     "dist": "npm run build:app && electron-builder",
     "dist:portable": "npm run build:app && electron-builder --win portable",
-    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs && node --experimental-strip-types tests/test-desktop-security.mjs && node --experimental-strip-types tests/test-android-security.mjs"
+    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs && node --experimental-strip-types tests/test-desktop-security.mjs && node --experimental-strip-types tests/test-android-security.mjs && node --experimental-strip-types tests/test-sync-engine.mjs"
   },
   "build": {
     "appId": "com.familyvault.desktop",

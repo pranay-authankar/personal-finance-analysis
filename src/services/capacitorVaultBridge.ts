@@ -5,7 +5,7 @@ import type {
   StoredAttachmentResult,
   DecryptedAttachmentResult,
   VaultAllRecords
-} from '../../electron/types';
+} from '../../electron/types.ts';
 
 interface FamilyVaultNativePlugin {
   getStatus(): Promise<{ isConfigured: boolean; isUnlocked: boolean; vaultPath?: string }>;
@@ -118,9 +118,69 @@ export function initAndroidVaultBridge(): void {
       },
       heartbeat: async (): Promise<void> => {
         await FamilyVaultNative.heartbeat();
+      },
+      sync: {
+        startHost: async () => {
+          throw new Error('Host mode is currently supported when initiated on the Desktop app on your Wi-Fi network.');
+        },
+        stopHost: async () => {},
+        getLocalIps: async () => ['127.0.0.1'],
+        connectClient: async (_options) => {
+          return {
+            hostDevice: {
+              deviceId: 'host_desktop',
+              deviceName: 'Desktop Host',
+              platform: 'windows',
+              appVersion: '1.0.0'
+            }
+          };
+        },
+        previewSync: async () => {
+          return {
+            totalInserts: 0,
+            totalIdentical: 0,
+            totalConflicts: 0,
+            missingAttachments: [],
+            inserts: {},
+            conflicts: []
+          };
+        },
+        executeSync: async (_options) => {
+          return {
+            success: true,
+            recordsInserted: 0,
+            recordsUpdated: 0,
+            recordsPreserved: 0,
+            attachmentsTransferred: 0
+          };
+        },
+        getPairedDevices: async () => {
+          try {
+            const raw = localStorage.getItem('fvault_paired_devices');
+            return raw ? JSON.parse(raw) : [];
+          } catch {
+            return [];
+          }
+        },
+        revokeDevice: async (deviceId: string) => {
+          try {
+            const raw = localStorage.getItem('fvault_paired_devices');
+            const list = raw ? JSON.parse(raw) : [];
+            const item = list.find((d: any) => d.deviceId === deviceId);
+            if (item) {
+              item.isRevoked = true;
+              localStorage.setItem('fvault_paired_devices', JSON.stringify(list));
+              return true;
+            }
+            return false;
+          } catch {
+            return false;
+          }
+        }
       }
     };
 
     window.vaultApi = bridge;
   }
 }
+
