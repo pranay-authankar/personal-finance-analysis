@@ -2,7 +2,7 @@ import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useInvestments } from '../context/InvestmentContext';
 import { GlobalHeaderClock } from './GlobalHeaderClock';
-import { Menu, ChevronRight } from 'lucide-react';
+import { Menu, ChevronRight, Lock } from 'lucide-react';
 
 interface TopUtilityBarProps {
   onOpenMobileMenu: () => void;
@@ -11,7 +11,7 @@ interface TopUtilityBarProps {
 export const TopUtilityBar: React.FC<TopUtilityBarProps> = ({ onOpenMobileMenu }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { activeMember, isAuthenticated } = useInvestments();
+  const { activeMember, isAuthenticated, logout } = useInvestments();
 
   if (!isAuthenticated) return null;
 
@@ -59,6 +59,32 @@ export const TopUtilityBar: React.FC<TopUtilityBarProps> = ({ onOpenMobileMenu }
           <div className="top-utility-clock-wrapper">
             <GlobalHeaderClock />
           </div>
+
+          {/* Manual Vault Lock Button */}
+          <button
+            type="button"
+            className="top-utility-lock-btn"
+            onClick={async () => {
+              await logout();
+              navigate('/login');
+            }}
+            title="Lock Encrypted Vault"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '5px',
+              padding: '6px 10px',
+              borderRadius: '6px',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              background: 'rgba(255, 255, 255, 0.04)',
+              color: '#94a3b8',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }}
+          >
+            <Lock size={13} strokeWidth={2.2} />
+            <span>Lock</span>
+          </button>
 
           {/* Quick Active Member Chip */}
           <button

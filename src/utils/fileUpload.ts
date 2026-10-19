@@ -8,6 +8,25 @@ export async function uploadDocumentFile(file: File): Promise<string> {
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result as string;
+
+      // 1. Electron Desktop Mode: store encrypted in %LOCALAPPDATA%\FamilyVault\attachments\
+      if (typeof window !== 'undefined' && window.vaultApi) {
+        try {
+          const res = await window.vaultApi.uploadAttachment({
+            originalFilename: file.name,
+            mimeType: file.type || 'application/octet-stream',
+            dataBase64: dataUrl
+          });
+          if (res && res.d_link) {
+            resolve(res.d_link);
+            return;
+          }
+        } catch (err) {
+          console.warn('Failed to encrypt and store document attachment:', err);
+        }
+      }
+
+      // 2. Web Dev Mode: upload to /api/upload
       try {
         const res = await fetch('/api/upload', {
           method: 'POST',

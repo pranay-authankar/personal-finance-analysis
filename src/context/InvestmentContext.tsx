@@ -271,6 +271,17 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
+  // Listen for vault:locked events from main process (inactivity lock or manual lock)
+  useEffect(() => {
+    const handleLocked = () => {
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('vault:locked', handleLocked);
+    return () => {
+      window.removeEventListener('vault:locked', handleLocked);
+    };
+  }, []);
+
   // State revision counter to force reactivity on CSV file writes
   const [dataRevision, setDataRevision] = useState<number>(0);
   const [isCsvLoaded, setIsCsvLoaded] = useState<boolean>(false);
@@ -704,6 +715,11 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const res = await authService.login(password);
     if (res.success) {
       setIsAuthenticated(true);
+      await csvDb.loadAll();
+      if (csvDb.familyMembers.length > 0 && !activeMemberId) {
+        setActiveMemberIdState(csvDb.familyMembers[0].member_id);
+      }
+      bumpRevision();
       return { success: true };
     }
     return { success: false, error: res.error || 'Authentication failed' };
@@ -714,6 +730,8 @@ export const InvestmentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (res.success) {
       setIsVaultConfigured(true);
       setIsAuthenticated(true);
+      await csvDb.loadAll();
+      bumpRevision();
       return { success: true };
     }
     return { success: false, error: res.error || 'Vault setup failed' };

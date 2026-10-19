@@ -162,6 +162,10 @@ export class SqliteStorageEngine implements IStorageEngine {
     return this.activeDb;
   }
 
+  public getKeyBuffer(): Buffer | null {
+    return this.cachedKeyBuffer;
+  }
+
   /**
    * Initializes a brand-new encrypted vault database.
    */

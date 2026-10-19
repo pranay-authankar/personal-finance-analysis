@@ -1,15 +1,65 @@
 {
   "name": "family-investment-tracker",
+  "productName": "FamilyVault",
+  "description": "FamilyVault — Secure Local-First Encrypted Investment Tracker",
+  "author": "FamilyVault Team",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "dist-electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:electron": "vite build --config vite.electron.config.ts",
+    "build:renderer": "tsc -b && vite build",
+    "build:app": "npm run build:renderer && npm run build:electron",
     "lint": "oxlint",
     "preview": "vite preview",
     "migrate": "node --experimental-strip-types scripts/migrate.ts",
-    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs"
+    "pack": "npm run build:app && electron-builder --dir",
+    "dist": "npm run build:app && electron-builder",
+    "dist:portable": "npm run build:app && electron-builder --win portable",
+    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs && node --experimental-strip-types tests/test-desktop-security.mjs"
+  },
+  "build": {
+    "appId": "com.familyvault.desktop",
+    "productName": "FamilyVault",
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "server/**/*",
+      "node_modules/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,test,tests,example,examples}",
+      "!node_modules/.bin"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/better-sqlite3-multiple-ciphers/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FamilyVault"
+    }
   },
   "dependencies": {
     "better-sqlite3-multiple-ciphers": "^13.0.3",
@@ -24,6 +74,8 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"

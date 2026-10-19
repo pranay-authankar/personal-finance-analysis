@@ -363,8 +363,27 @@ export class CsvDatabaseService {
     return CsvDatabaseService.instance;
   }
 
-  // Load all 11 CSV tables from CSV files (via /api/csv/ or /data/*.csv)
+  // Load all 11 tables from encrypted vault (in desktop app) or CSV files (in dev web mode)
   public async loadAll(): Promise<void> {
+    if (typeof window !== 'undefined' && window.vaultApi) {
+      const data = await window.vaultApi.loadAll();
+      this.familyMembers = data.familyMembers || [];
+      this.assets = data.assets || [];
+      this.fds = data.fds || [];
+      this.postOffice = data.postOffice || [];
+      this.bullions = data.bullions || [];
+      this.properties = data.properties || [];
+      this.rents = data.rents || [];
+      this.assetSales = data.assetSales || [];
+      this.payments = data.payments || [];
+      this.documents = data.documents || [];
+      this.contributions = data.contributions || [];
+      this.isLoaded = true;
+
+      await this.syncOverduePaymentStatuses();
+      return;
+    }
+
     const [
       familyMembers,
       assets,
@@ -434,6 +453,15 @@ export class CsvDatabaseService {
   }
 
   public async persistTable<T>(tableName: string, records: T[], columns: (keyof T)[]): Promise<void> {
+    if (typeof window !== 'undefined' && window.vaultApi) {
+      try {
+        await window.vaultApi.saveTable(tableName, records as unknown as Record<string, unknown>[]);
+      } catch (e) {
+        console.warn(`Failed to sync ${tableName} to encrypted SQLite vault:`, e);
+      }
+      return;
+    }
+
     const csvString = serializeCsv<T>(records, columns);
 
     try {
@@ -460,6 +488,11 @@ export class CsvDatabaseService {
     this.payments = [];
     this.documents = [];
     this.contributions = [];
+
+    if (typeof window !== 'undefined' && window.vaultApi) {
+      await window.vaultApi.clearAll();
+      return;
+    }
 
     await Promise.all([
       this.persistTable('family_members', [], FAMILY_MEMBERS_COLUMNS),
@@ -831,7 +864,13 @@ export class CsvDatabaseService {
 
   public async deleteDocument(d_id: string): Promise<void> {
     const doc = this.documents.find((d) => d.d_id === d_id);
-    if (doc?.d_link && doc.d_link.startsWith('/uploads/')) {
+    if (typeof window !== 'undefined' && window.vaultApi && doc?.d_link && (doc.d_link.startsWith('vault://') || doc.d_link.endsWith('.enc'))) {
+      try {
+        await window.vaultApi.deleteAttachment(doc.d_link);
+      } catch (err) {
+        console.warn('Notice: Failed to delete encrypted attachment file:', err);
+      }
+    } else if (doc?.d_link && doc.d_link.startsWith('/uploads/')) {
       try {
         await fetch('/api/uploads/delete', {
           method: 'POST',
