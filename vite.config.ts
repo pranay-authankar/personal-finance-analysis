@@ -239,5 +239,6 @@ function authApiPlugin(): Plugin {
 }
 
 export default defineConfig({
+  base: './',
   plugins: [react(), csvStoragePlugin(), authApiPlugin()],
 });
