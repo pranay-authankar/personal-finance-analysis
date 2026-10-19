@@ -25,9 +25,8 @@ legacy_static/
 *.sw?
 
 # Database and Vault Local Files
-temp_test_vault/
-temp_phase3_test_suite/
-temp_clear_all_test_sandbox/
+temp_*/
+*.fvault
 *.db
 *.db-wal
 *.db-shm
