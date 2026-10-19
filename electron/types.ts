@@ -16,7 +16,7 @@ export interface VaultStatus {
   isConfigured: boolean;
   isUnlocked: boolean;
   vaultDbPath: string;
-  isElectron: true;
+  isElectron: boolean;
 }
 
 export interface VaultAllRecords {

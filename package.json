@@ -19,7 +19,7 @@
     "pack": "npm run build:app && electron-builder --dir",
     "dist": "npm run build:app && electron-builder",
     "dist:portable": "npm run build:app && electron-builder --win portable",
-    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs && node --experimental-strip-types tests/test-desktop-security.mjs"
+    "test": "node --experimental-strip-types tests/test-auth.mjs && node --experimental-strip-types tests/test-clear-all.mjs && node --experimental-strip-types tests/test-property-update.mjs && node --experimental-strip-types tests/test-rent-management.mjs && node --experimental-strip-types tests/test-overdue-payments.mjs && node --experimental-strip-types tests/test-vault-foundation.mjs && node --experimental-strip-types tests/test-migration-safety.mjs && node --experimental-strip-types tests/test-desktop-security.mjs && node --experimental-strip-types tests/test-android-security.mjs"
   },
   "build": {
     "appId": "com.familyvault.desktop",
@@ -45,11 +45,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -62,6 +66,7 @@
     }
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.3",
     "better-sqlite3-multiple-ciphers": "^13.0.3",
     "lucide-react": "^1.51.0",
     "react": "^19.2.8",
@@ -69,6 +74,8 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/cli": "^8.5.3",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",

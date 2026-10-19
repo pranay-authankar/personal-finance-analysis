@@ -37,6 +37,17 @@ backups/
 .familyvault_auth.json*
 
 # User uploads
+# User uploads
 uploads/*
 !uploads/.gitkeep
+
+# Android build artifacts and caches
+android/.gradle/
+android/app/build/
+android/build/
+*.apk
+*.aab
+*.jks
+*.keystore
+local.properties
 
